@@ -72,13 +72,13 @@ jobs:
       - name: Move and rename APK
         run: |
           mkdir -p out
-          cp app/build/outputs/apk/release/*.apk out/PasswordManager-${{ inputs.version }}.apk
+          cp app/build/outputs/apk/release/*.apk out/coolplayer-${{ inputs.version }}.apk
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.version }}
-          name: PasswordStore ${{ inputs.version }}
+          name: coolplayer ${{ inputs.version }}
           prerelease: false
           make_latest: true
-          files: out/PasswordManager-${{ inputs.version }}.apk
+          files: out/coolplayer-${{ inputs.version }}.apk
