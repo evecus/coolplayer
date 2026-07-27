@@ -31,12 +31,11 @@ import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
-import androidx.compose.material3.NavigationRail
-import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
@@ -71,8 +70,6 @@ import com.coolplayer.music.ui.library.SongListScreen
 import com.coolplayer.music.ui.navigation.AppNavigator
 import com.coolplayer.music.ui.theme.currentWindowInfo
 import kotlinx.coroutines.launch
-
-data class TabletNavItem(val label: String, val icon: ImageVector, val category: Int)
 
 @Composable
 fun HomeScreen(navController: NavHostController) {
@@ -152,89 +149,125 @@ private fun TabletHomeLayout(
     val category by vm.currentCategory.collectAsState()
     val scheme = MaterialTheme.colorScheme
 
-    val navItems = listOf(
-        TabletNavItem("歌曲", Icons.Default.MusicNote, MusicCategory.SONG),
-        TabletNavItem("专辑", Icons.Default.Album, MusicCategory.ALBUM),
-        TabletNavItem("艺术家", Icons.Default.Mic, MusicCategory.ARTIST),
-        TabletNavItem("文件夹", Icons.Default.Folder, MusicCategory.FOLDER),
-    )
-
     Row(modifier = Modifier.fillMaxSize().background(scheme.background)) {
-        NavigationRail(
-            modifier = Modifier.fillMaxHeight().statusBarsPadding(),
-            containerColor = scheme.surface,
-            header = {
-                Column(
-                    modifier = Modifier.padding(vertical = 12.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+        Column(
+            modifier = Modifier
+                .width(280.dp)
+                .fillMaxHeight()
+                .statusBarsPadding()
+                .background(scheme.surface)
+        ) {
+            Text(
+                text = "Cool Player",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = scheme.onSurface,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)
+            )
+
+            Spacer(Modifier.height(4.dp))
+
+            DrawerItem(
+                icon = Icons.Default.MusicNote,
+                label = "歌曲",
+                selected = category == MusicCategory.SONG,
+                iconTint = androidx.compose.ui.graphics.Color(0xFF2ECC71),
+                onClick = { vm.setCategory(MusicCategory.SONG) }
+            )
+            DrawerItem(
+                icon = Icons.Default.Album,
+                label = "专辑",
+                selected = category == MusicCategory.ALBUM,
+                iconTint = androidx.compose.ui.graphics.Color(0xFFE74C3C),
+                onClick = { vm.setCategory(MusicCategory.ALBUM) }
+            )
+            DrawerItem(
+                icon = Icons.Default.Mic,
+                label = "艺术家",
+                selected = category == MusicCategory.ARTIST,
+                iconTint = androidx.compose.ui.graphics.Color(0xFFF1C40F),
+                onClick = { vm.setCategory(MusicCategory.ARTIST) }
+            )
+            DrawerItem(
+                icon = Icons.Default.Folder,
+                label = "文件夹",
+                selected = category == MusicCategory.FOLDER,
+                iconTint = androidx.compose.ui.graphics.Color(0xFF7C4DFF),
+                onClick = { vm.setCategory(MusicCategory.FOLDER) }
+            )
+            DrawerItem(
+                icon = Icons.Default.QueueMusic,
+                label = "歌单",
+                selected = false,
+                iconTint = androidx.compose.ui.graphics.Color(0xFFFF7043),
+                onClick = { AppNavigator.toPlaylists(navController) }
+            )
+
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 12.dp, horizontal = 12.dp)
+            )
+
+            DrawerItem(
+                icon = Icons.Default.LibraryMusic,
+                label = "扫描音乐",
+                selected = false,
+                iconTint = androidx.compose.ui.graphics.Color(0xFF3498DB),
+                onClick = { AppNavigator.toScanSettings(navController) }
+            )
+            DrawerItem(
+                icon = Icons.Default.Settings,
+                label = "设置",
+                selected = false,
+                iconTint = androidx.compose.ui.graphics.Color(0xFF2ECC71),
+                onClick = { AppNavigator.toSettings(navController) }
+            )
+
+            Spacer(Modifier.weight(1f))
+
+            if (player != null) {
+                val pTitle by player.title.collectAsState()
+                val pArtist by player.artist.collectAsState()
+                Surface(
+                    color = scheme.surfaceVariant,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                        .clickable { AppNavigator.toPlayer(navController) }
                 ) {
-                    Text(
-                        text = "CP",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = scheme.primary
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (player.isPlaying.value) Icons.Default.PlayArrow else Icons.Default.Pause,
+                            contentDescription = null,
+                            tint = scheme.primary,
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Spacer(Modifier.size(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                text = pTitle.ifEmpty { "未在播放" },
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = scheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = pArtist.ifEmpty { "" },
+                                fontSize = 12.sp,
+                                color = scheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
                 }
             }
-        ) {
+
             Spacer(Modifier.height(8.dp))
-            navItems.forEach { item ->
-                NavigationRailItem(
-                    selected = category == item.category,
-                    onClick = { vm.setCategory(item.category) },
-                    icon = {
-                        Icon(
-                            imageVector = item.icon,
-                            contentDescription = item.label,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    },
-                    label = {
-                        Text(
-                            text = item.label,
-                            fontSize = 11.sp,
-                            fontWeight = if (category == item.category) FontWeight.Bold else FontWeight.Normal
-                        )
-                    }
-                )
-            }
-            Spacer(Modifier.weight(1f))
-            NavigationRailItem(
-                selected = false,
-                onClick = { AppNavigator.toPlaylists(navController) },
-                icon = {
-                    Icon(
-                        imageVector = Icons.Default.QueueMusic,
-                        contentDescription = "歌单",
-                        modifier = Modifier.size(22.dp)
-                    )
-                },
-                label = { Text("歌单", fontSize = 11.sp) }
-            )
-            NavigationRailItem(
-                selected = false,
-                onClick = { AppNavigator.toScanSettings(navController) },
-                icon = {
-                    Icon(
-                        imageVector = Icons.Default.LibraryMusic,
-                        contentDescription = "扫描",
-                        modifier = Modifier.size(22.dp)
-                    )
-                },
-                label = { Text("扫描", fontSize = 11.sp) }
-            )
-            NavigationRailItem(
-                selected = false,
-                onClick = { AppNavigator.toSettings(navController) },
-                icon = {
-                    Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = "设置",
-                        modifier = Modifier.size(22.dp)
-                    )
-                },
-                label = { Text("设置", fontSize = 11.sp) }
-            )
         }
 
         VerticalDivider()
@@ -270,7 +303,6 @@ private fun TabletHomeLayout(
             Box(modifier = Modifier.weight(1f)) {
                 HomeContent(vm = vm, navController = navController)
             }
-            MiniPlaybackBar(player = player, onClick = { AppNavigator.toPlayer(navController) })
         }
     }
 }
