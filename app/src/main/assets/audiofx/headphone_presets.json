@@ -1,0 +1,81 @@
+{
+  "_comment": "以下参数来自 AutoEQ 开源项目 (github.com/jaakkopasanen/AutoEq)，遵循其 CC-BY-SA-4.0 协议，署名保留在 source 字段。AutoEQ 本身不做均衡处理，仅提供测量与拟合参数。",
+  "presets": [
+    {
+      "id": "hp_airpods_max",
+      "name": "Apple AirPods Max",
+      "tag": "耳机型号",
+      "source": "oratory1990 / AutoEQ",
+      "preampDb": -4.7,
+      "bands": [
+        { "type": "LSC", "freqHz": 105,  "gainDb": -3.0, "q": 0.70 },
+        { "type": "PK",  "freqHz": 7273, "gainDb": 3.6,  "q": 2.41 },
+        { "type": "PK",  "freqHz": 218,  "gainDb": -2.9, "q": 1.41 },
+        { "type": "PK",  "freqHz": 1031, "gainDb": -3.2, "q": 0.99 },
+        { "type": "PK",  "freqHz": 3185, "gainDb": 3.1,  "q": 0.56 },
+        { "type": "HSC", "freqHz": 10000,"gainDb": -5.5, "q": 0.70 },
+        { "type": "PK",  "freqHz": 9508, "gainDb": 2.7,  "q": 2.20 },
+        { "type": "PK",  "freqHz": 66,   "gainDb": 0.6,  "q": 1.65 },
+        { "type": "PK",  "freqHz": 4045, "gainDb": 2.1,  "q": 5.82 },
+        { "type": "PK",  "freqHz": 4834, "gainDb": -1.8, "q": 6.00 }
+      ]
+    },
+    {
+      "id": "hp_airpods_pro",
+      "name": "Apple AirPods Pro",
+      "tag": "耳机型号",
+      "source": "crinacle / AutoEQ",
+      "preampDb": -6.0,
+      "bands": [
+        { "type": "LSC", "freqHz": 105,  "gainDb": 2.6,  "q": 0.70 },
+        { "type": "PK",  "freqHz": 514,  "gainDb": -4.4, "q": 0.68 },
+        { "type": "PK",  "freqHz": 8903, "gainDb": 6.0,  "q": 1.66 },
+        { "type": "PK",  "freqHz": 183,  "gainDb": 2.0,  "q": 0.77 },
+        { "type": "PK",  "freqHz": 4613, "gainDb": 3.4,  "q": 2.46 },
+        { "type": "HSC", "freqHz": 10000,"gainDb": -0.5, "q": 0.70 },
+        { "type": "PK",  "freqHz": 1517, "gainDb": -1.0, "q": 2.33 },
+        { "type": "PK",  "freqHz": 929,  "gainDb": 1.2,  "q": 2.75 },
+        { "type": "PK",  "freqHz": 44,   "gainDb": -0.5, "q": 2.16 },
+        { "type": "PK",  "freqHz": 618,  "gainDb": -0.5, "q": 2.86 }
+      ]
+    },
+    {
+      "id": "hp_airpods_3",
+      "name": "Apple AirPods (3rd gen)",
+      "tag": "耳机型号",
+      "source": "Rtings / AutoEQ",
+      "preampDb": -6.4,
+      "bands": [
+        { "type": "LSC", "freqHz": 105,  "gainDb": 6.9,  "q": 0.70 },
+        { "type": "PK",  "freqHz": 1838, "gainDb": -3.9, "q": 2.08 },
+        { "type": "PK",  "freqHz": 3879, "gainDb": 2.5,  "q": 2.13 },
+        { "type": "PK",  "freqHz": 64,   "gainDb": -5.0, "q": 0.96 },
+        { "type": "PK",  "freqHz": 43,   "gainDb": 2.7,  "q": 3.38 },
+        { "type": "HSC", "freqHz": 10000,"gainDb": 5.5,  "q": 0.70 },
+        { "type": "PK",  "freqHz": 9961, "gainDb": 2.4,  "q": 1.61 },
+        { "type": "PK",  "freqHz": 6052, "gainDb": -2.7, "q": 3.91 },
+        { "type": "PK",  "freqHz": 724,  "gainDb": 1.9,  "q": 2.80 },
+        { "type": "PK",  "freqHz": 420,  "gainDb": -0.6, "q": 1.89 }
+      ]
+    },
+    {
+      "id": "hp_sony_xm5",
+      "name": "Sony WH-1000XM5",
+      "tag": "耳机型号",
+      "source": "oratory1990 / AutoEQ",
+      "preampDb": -6.2,
+      "bands": [
+        { "type": "LSC", "freqHz": 105,  "gainDb": -3.2, "q": 0.70 },
+        { "type": "PK",  "freqHz": 2448, "gainDb": 6.9,  "q": 2.46 },
+        { "type": "PK",  "freqHz": 173,  "gainDb": -5.6, "q": 0.96 },
+        { "type": "PK",  "freqHz": 3028, "gainDb": -5.4, "q": 2.03 },
+        { "type": "PK",  "freqHz": 1327, "gainDb": 3.3,  "q": 0.58 },
+        { "type": "HSC", "freqHz": 10000,"gainDb": 4.9,  "q": 0.70 },
+        { "type": "PK",  "freqHz": 6110, "gainDb": -2.3, "q": 5.81 },
+        { "type": "PK",  "freqHz": 875,  "gainDb": -1.2, "q": 4.07 },
+        { "type": "PK",  "freqHz": 1197, "gainDb": 1.0,  "q": 3.28 },
+        { "type": "PK",  "freqHz": 63,   "gainDb": 0.4,  "q": 2.13 }
+      ]
+    }
+  ]
+}
