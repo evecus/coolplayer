@@ -39,7 +39,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: test
-          name: PasswordStore test
+          name: coolplayer test
           prerelease: true
           make_latest: false
           files: out/coolplayer-debug.apk
