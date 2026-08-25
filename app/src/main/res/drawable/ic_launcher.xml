@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- 白色圆角背景：贴边满铺，避免系统再裁一次遮罩时露出透明边缘 -->
+    <path
+        android:fillColor="@color/ic_launcher_bg"
+        android:pathData="M18,0 L90,0 A18,18 0 0,1 108,18 L108,90 A18,18 0 0,1 90,108 L18,108 A18,18 0 0,1 0,90 L0,18 A18,18 0 0,1 18,0 Z" />
+    <!-- 矢量音符，绿到青蓝渐变 -->
+    <path android:pathData="M 46.44,19.01 C 43.20,19.01 41.69,22.03 42.55,25.49 L 48.60,48.38 C 32.83,49.25 24.19,60.91 24.19,73.01 C 24.19,86.62 35.21,96.34 48.82,96.34 C 63.07,96.34 73.22,85.10 73.22,71.71 C 73.22,66.96 72.14,61.78 70.20,56.81 C 68.69,52.92 66.10,44.50 65.88,40.61 C 65.66,38.45 66.74,37.58 68.69,37.37 L 76.25,36.07 C 79.92,35.42 82.08,32.83 81.22,28.94 C 80.35,24.62 77.33,19.01 72.36,19.01 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="81"
+                android:startY="10.8"
+                android:endX="27"
+                android:endY="97.2">
+                <item android:offset="0.0" android:color="#FFACED68" />
+                <item android:offset="0.3" android:color="#FF5FE08A" />
+                <item android:offset="0.65" android:color="#FF23D3CE" />
+                <item android:offset="1.0" android:color="#FF00C4FA" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>
