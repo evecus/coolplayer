@@ -61,7 +61,10 @@ object AudioMetadataReader {
             val coverBytes = runCatching {
                 tag?.firstArtwork?.binaryData?.let { raw ->
                     if (compressCoverForThumbnail) {
-                        BitmapDecodeUtil.compressForStorage(raw) ?: raw
+                        // 压缩失败（非图片数据、损坏等）时不要 fallback 成 raw：raw 是未压缩的
+                        // 原始封面，可能几百 KB～几 MB，写进 song_cover 表会失去限制小图体积的
+                        // 意义。压缩失败就当作没有封面，调用方按 null 处理（不写入该曲目封面）。
+                        BitmapDecodeUtil.compressForStorage(raw)
                     } else {
                         raw
                     }

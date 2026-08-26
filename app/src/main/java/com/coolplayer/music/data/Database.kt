@@ -471,6 +471,17 @@ interface SongCoverDao {
     @Query("SELECT * FROM song_cover")
     fun observeAll(): Flow<List<SongCoverEntity>>
 
+    @Query("SELECT * FROM song_cover")
+    suspend fun getAll(): List<SongCoverEntity>
+
+    /**
+     * 供 [com.coolplayer.music.ui.library.LibraryViewModel.refreshSortedSongs] 在查完
+     * song_library 排序结果后，按 path 把封面小图关联回 SongEntry.coverBytes 用。
+     * 一次性查出整表转 Map，避免逐条按 path 查询（N 次 IO）。
+     */
+    suspend fun getAllAsMap(): Map<String, ByteArray> =
+        getAll().associateBy({ it.path }, { it.coverBytes })
+
     @Query("SELECT * FROM song_cover WHERE path = :path LIMIT 1")
     suspend fun getByPath(path: String): SongCoverEntity?
 

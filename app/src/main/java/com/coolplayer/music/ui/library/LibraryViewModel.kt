@@ -373,7 +373,13 @@ class LibraryViewModel(app: Application) : AndroidViewModel(app) {
                     else -> if (ascending) songLibraryDao.searchByTitleAsc(kw) else songLibraryDao.searchByTitleDesc(kw)
                 }
             }
+            // entities.map { it.toSongEntry() } 转换出来的 SongEntry.coverBytes 永远是 null——
+            // SongLibraryEntity（song_library 表）本身不含封面数据，封面被拆到独立的
+            // song_cover 表（见 SongCoverEntity 上的注释）。这里必须再查一次 song_cover
+            // 并按 path 关联回去，否则歌曲列表页会永远显示占位音符图标而不是真实封面。
             val songs = entities.map { it.toSongEntry() }
+            val coverByPath = songCoverDao.getAllAsMap()
+            songs.forEach { song -> song.coverBytes = coverByPath[song.path] }
             withContext(Dispatchers.Main) { sortedSongsFlow.value = songs }
         }
     }
