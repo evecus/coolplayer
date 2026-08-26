@@ -32,7 +32,17 @@ data class AudioMetadata(
  */
 object AudioMetadataReader {
 
-    fun readFile(filePath: String): AudioMetadata {
+    /**
+     * 读取音频文件元数据。
+     *
+     * @param compressCoverForThumbnail 若为 true，返回的 [AudioMetadata.coverBytes]
+     *   会先经过 [BitmapDecodeUtil.compressForStorage] 降采样压缩成列表/专辑网格
+     *   用的小图缩略图，用于扫描阶段写入 [SongCoverEntity] 数据库缓存表。
+     *   默认为 false，返回音频文件内嵌的原始封面字节（不做任何压缩）——
+     *   [com.coolplayer.music.player.MusicPlayer] 播放时读取封面用于播放页
+     *   展示，需要保留最佳画质，不应传 true。
+     */
+    fun readFile(filePath: String, compressCoverForThumbnail: Boolean = false): AudioMetadata {
         val file = File(filePath)
         if (!file.exists()) return AudioMetadata()
 
@@ -48,13 +58,13 @@ object AudioMetadataReader {
             val lyrics = tag?.getFirst(FieldKey.LYRICS)?.takeIf { it.isNotBlank() }
 
             // 封面：取第一张内嵌图片（多数音频文件只有一张封面）。
-            // 原始内嵌图片可能是几百 KB 到几 MB 的高分辨率 JPEG/PNG，而
-            // coverBytes 是纯内存态字段、会长期常驻在 SongEntry 上（全量
-            // 2000+ 首歌都持有的话内存占用非常可观），这里先降采样压缩
-            // 成体积小得多的版本再存储，具体原因见 BitmapDecodeUtil 的注释。
             val coverBytes = runCatching {
                 tag?.firstArtwork?.binaryData?.let { raw ->
-                    BitmapDecodeUtil.compressForStorage(raw) ?: raw
+                    if (compressCoverForThumbnail) {
+                        BitmapDecodeUtil.compressForStorage(raw) ?: raw
+                    } else {
+                        raw
+                    }
                 }
             }.getOrNull()
 

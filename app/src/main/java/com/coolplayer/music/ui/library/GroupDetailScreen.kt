@@ -49,7 +49,6 @@ fun GroupDetailScreen(
     val activity = LocalContext.current as ComponentActivity
     val vm: LibraryViewModel = viewModel(viewModelStoreOwner = activity)
     val allSongs by vm.allSongs.collectAsState()
-    val coverVersion by vm.coverVersion.collectAsState()
 
     val group = remember(category, groupKey, allSongs) {
         vm.findGroup(category, groupKey)
@@ -125,15 +124,13 @@ fun GroupDetailScreen(
                             }
                             .padding(horizontal = if (isTablet) 20.dp else 16.dp, vertical = if (isTablet) 12.dp else 10.dp)
                     ) {
-                        // 同 SongListScreen：coverBytes 是普通 var 字段，靠 coverVersion
-                        // 自增强制这里重新读取最新值，否则已组合过的行会一直显示旧封面。
-                        androidx.compose.runtime.key(coverVersion) {
-                            CoverOrNote(
-                                coverBytes = song.coverBytes,
-                                size = if (isTablet) 48.dp else 40.dp,
-                                iconSize = if (isTablet) 26.dp else 22.dp
-                            )
-                        }
+                        // 封面数据现在随扫描阶段预生成、持久化在数据库里，
+                        // song 对象本身就带着正确的 coverBytes。
+                        CoverOrNote(
+                            coverBytes = song.coverBytes,
+                            size = if (isTablet) 48.dp else 40.dp,
+                            iconSize = if (isTablet) 26.dp else 22.dp
+                        )
                         Spacer(Modifier.size(if (isTablet) 16.dp else 12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
@@ -154,12 +151,6 @@ fun GroupDetailScreen(
                     }
                 }
             }
-        }
-    }
-
-    androidx.compose.runtime.LaunchedEffect(songs) {
-        if (songs.isNotEmpty()) {
-            vm.requestCovers(songs)
         }
     }
 }

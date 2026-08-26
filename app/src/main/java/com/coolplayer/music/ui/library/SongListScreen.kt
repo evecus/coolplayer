@@ -50,9 +50,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -76,7 +74,6 @@ import com.coolplayer.music.ui.navigation.AppNavigator
 import com.coolplayer.music.ui.theme.boundTabletWidth
 import com.coolplayer.music.ui.theme.currentWindowInfo
 import com.coolplayer.music.ui.widget.OptionDialog
-import kotlin.math.min
 import kotlinx.coroutines.launch
 
 /**
@@ -92,10 +89,12 @@ fun SongListScreen(vm: LibraryViewModel, navController: NavHostController) {
     val sortFieldValue by vm.sortField.collectAsState()
     val sortAscendingValue by vm.sortAscending.collectAsState()
     val keyword by vm.searchKeyword.collectAsState()
-    val coverVersion by vm.coverVersion.collectAsState()
 
     // 直接订阅 SQL 排序/搜索查询的异步结果（LibraryViewModel.sortedSongsFlow），
     // 排序字段、方向、关键字变化时 ViewModel 会重新发起查询并推送新结果到这里。
+    // 封面缩略图现在由扫描阶段预生成并持久化在数据库（song_cover 表），
+    // sortedSongsFlow 里的 SongEntry 直接带着 coverBytes，不再需要运行时
+    // 按需读取音频文件封面的那套分批请求逻辑。
     val songs by vm.sortedSongsFlow.collectAsState()
 
     var showSort by remember { mutableStateOf(false) }
@@ -104,20 +103,6 @@ fun SongListScreen(vm: LibraryViewModel, navController: NavHostController) {
     val scope = rememberCoroutineScope()
 
     val songListState = rememberLazyListState()
-    val lastVisibleIndex by remember {
-        derivedStateOf { songListState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 }
-    }
-    var coverRequestedCount by remember(category, sortFieldValue, sortAscendingValue, keyword) { mutableStateOf(0) }
-    LaunchedEffect(category, songs.isNotEmpty(), lastVisibleIndex, coverRequestedCount) {
-        if (songs.isEmpty()) return@LaunchedEffect
-        if (coverRequestedCount >= songs.size) return@LaunchedEffect
-        if (coverRequestedCount > 0 && lastVisibleIndex >= 0 &&
-            lastVisibleIndex < coverRequestedCount - 50
-        ) return@LaunchedEffect
-        val end = min(coverRequestedCount + 200, songs.size)
-        vm.requestCovers(songs.subList(coverRequestedCount, end))
-        coverRequestedCount = end
-    }
 
     // 索引：每个字母第一次出现对应的歌曲下标
     val letterFirstIndex = remember(songs) {
@@ -185,7 +170,6 @@ fun SongListScreen(vm: LibraryViewModel, navController: NavHostController) {
                         itemsIndexed(songs, key = { _, s -> s.path }) { index, song ->
                             SongRow(
                                 song = song,
-                                coverVersion = coverVersion,
                                 selectionMode = selectionMode,
                                 selected = song.path in selectedPaths,
                                 onToggleSelect = {
@@ -401,7 +385,6 @@ private fun BottomBarAction(
 @Composable
 private fun SongRow(
     song: SongEntry,
-    coverVersion: Int,
     selectionMode: Boolean,
     selected: Boolean,
     onToggleSelect: () -> Unit,
@@ -418,13 +401,11 @@ private fun SongRow(
             .clickable(onClick = onClick)
             .padding(horizontal = if (isTablet) 20.dp else 12.dp, vertical = if (isTablet) 12.dp else 8.dp)
     ) {
-        // coverVersion 作为 key 的一部分：coverBytes 是 SongEntry 上的普通 var 字段，
-        // 后台加载完成后直接赋值不会触发 Compose 感知，必须靠 coverVersion 自增来强制
-        // 这里重新读取 song.coverBytes 的最新值，否则已经组合过的行会一直显示旧值（空封面），
-        // 直到该行因滚动被移出屏幕再重新进入时才会用上新值。
-        key(coverVersion) {
-            CoverOrNote(coverBytes = song.coverBytes, size = coverSize, iconSize = if (isTablet) 28.dp else 24.dp)
-        }
+        // 封面数据现在随扫描阶段预生成、持久化在数据库里，song 对象本身
+        // 就带着正确的 coverBytes（每次数据库变化 combine 出来的都是全新
+        // 对象，Compose 能正常识别 song 参数引用变化并重组），不再需要
+        // 额外的 coverVersion key 来强制刷新。
+        CoverOrNote(coverBytes = song.coverBytes, size = coverSize, iconSize = if (isTablet) 28.dp else 24.dp)
         Spacer(Modifier.size(if (isTablet) 16.dp else 12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
@@ -524,29 +505,7 @@ fun GroupListScreen(vm: LibraryViewModel, navController: NavHostController) {
 /** 专辑宫格：2 列封面卡片，点击进入专辑详情。 */
 @Composable
 private fun AlbumGrid(vm: LibraryViewModel, groups: List<MusicGroupEntry>, navController: NavHostController) {
-    val coverVersion by vm.coverVersion.collectAsState()
     val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
-
-    // 每个专辑取"第一首有封面数据的歌曲"作为代表封面；若都还没加载过，则取第一首触发加载。
-    val representativeSongs = remember(groups) {
-        groups.map { g -> g.songs.firstOrNull() }
-    }
-
-    val lastVisibleIndex by remember {
-        derivedStateOf { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 }
-    }
-    var coverRequestedCount by remember(groups) { mutableStateOf(0) }
-    LaunchedEffect(groups, representativeSongs.isNotEmpty(), lastVisibleIndex, coverRequestedCount) {
-        if (representativeSongs.isEmpty()) return@LaunchedEffect
-        if (coverRequestedCount >= representativeSongs.size) return@LaunchedEffect
-        if (coverRequestedCount > 0 && lastVisibleIndex >= 0 &&
-            lastVisibleIndex < coverRequestedCount - 40
-        ) return@LaunchedEffect
-        val end = min(coverRequestedCount + 120, representativeSongs.size)
-        val batch = representativeSongs.subList(coverRequestedCount, end).filterNotNull()
-        if (batch.isNotEmpty()) vm.requestCovers(batch)
-        coverRequestedCount = end
-    }
 
     val windowInfo = currentWindowInfo
     val gridMinSize = if (windowInfo.isLargeTablet) 220.dp else if (windowInfo.isTablet) 200.dp else 150.dp
@@ -568,7 +527,7 @@ private fun AlbumGrid(vm: LibraryViewModel, groups: List<MusicGroupEntry>, navCo
                         AppNavigator.toGroupDetail(navController, MusicCategory.ALBUM, g.key)
                     }
             ) {
-                val cover = remember(g.key, coverVersion) {
+                val cover = remember(g.key, g.songs) {
                     g.songs.firstOrNull { it.coverBytes != null }?.coverBytes
                 }
                 AlbumCover(coverBytes = cover, modifier = Modifier.fillMaxWidth())
@@ -828,7 +787,6 @@ fun EmptyLibraryPrompt(modifier: Modifier = Modifier, onScanClick: () -> Unit) {
 @Composable
 fun SearchScreen(vm: LibraryViewModel, navController: NavHostController, onBack: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
-    val coverVersion by vm.coverVersion.collectAsState()
 
     var keyword by remember { mutableStateOf("") }
     val focusRequester = remember { FocusRequester() }
@@ -840,22 +798,6 @@ fun SearchScreen(vm: LibraryViewModel, navController: NavHostController, onBack:
     }
 
     val listState = rememberLazyListState()
-    val lastVisibleIndex by remember {
-        derivedStateOf { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 }
-    }
-    // key 包含 keyword：每次关键字变化都是全新的一批结果，从 0 重新计数请求封面，
-    // 不会因为上次全量列表遗留的计数值而误判"已全部加载过封面"。
-    var coverRequestedCount by remember(keyword) { mutableStateOf(0) }
-    LaunchedEffect(keyword, results.isNotEmpty(), lastVisibleIndex, coverRequestedCount) {
-        if (results.isEmpty()) return@LaunchedEffect
-        if (coverRequestedCount >= results.size) return@LaunchedEffect
-        if (coverRequestedCount > 0 && lastVisibleIndex >= 0 &&
-            lastVisibleIndex < coverRequestedCount - 50
-        ) return@LaunchedEffect
-        val end = min(coverRequestedCount + 200, results.size)
-        vm.requestCovers(results.subList(coverRequestedCount, end))
-        coverRequestedCount = end
-    }
 
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
@@ -934,7 +876,6 @@ fun SearchScreen(vm: LibraryViewModel, navController: NavHostController, onBack:
                         itemsIndexed(results, key = { _, s -> s.path }) { index, song ->
                             SongRow(
                                 song = song,
-                                coverVersion = coverVersion,
                                 selectionMode = false,
                                 selected = false,
                                 onToggleSelect = {},

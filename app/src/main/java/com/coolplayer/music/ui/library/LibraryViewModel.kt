@@ -12,6 +12,8 @@ import com.coolplayer.music.data.MusicGroupEntry
 import com.coolplayer.music.data.PermissionUtil
 import com.coolplayer.music.data.ScanFilters
 import com.coolplayer.music.data.ScanFiltersStore
+import com.coolplayer.music.data.SongCoverDao
+import com.coolplayer.music.data.SongCoverEntity
 import com.coolplayer.music.data.SongEntry
 import com.coolplayer.music.data.SongLibraryDao
 import com.coolplayer.music.data.StorageService
@@ -22,6 +24,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
@@ -73,6 +76,7 @@ object MusicGroupSort {
 class LibraryViewModel(app: Application) : AndroidViewModel(app) {
 
     private val songLibraryDao: SongLibraryDao = App.database.songLibraryDao()
+    private val songCoverDao: SongCoverDao = App.database.songCoverDao()
 
     /** 音乐库全量数据，直接由 Room 的 Flow 驱动，任何写入（扫描/播放计数）都会自动推送更新。 */
     val allSongs = MutableStateFlow<List<SongEntry>>(emptyList())
@@ -85,7 +89,6 @@ class LibraryViewModel(app: Application) : AndroidViewModel(app) {
     val currentSortGroup = MutableStateFlow(MusicGroupSort.NAME_ASC)
     val searchKeyword = MutableStateFlow("")
     val metaLoadCount = MutableStateFlow(0)
-    val coverVersion = MutableStateFlow(0)
 
     /** [sortedSongs] 的最新结果：由 SQL 查询异步刷新。UI 通过 [collectAsState] 观察，
      *  而不是每次都重新调用一次同步查询——排序/搜索结果由协程写入这里后自动推送给订阅者。 */
@@ -98,8 +101,6 @@ class LibraryViewModel(app: Application) : AndroidViewModel(app) {
     /** 最近一次扫描得到的歌曲总数（扫描完成后展示）。 */
     val lastScanTotal = MutableStateFlow(0)
 
-    private val coverRequestedPaths = mutableSetOf<String>()
-    private var coverLoadGeneration = 0
     private var initialized = false
 
     fun init() {
@@ -115,29 +116,30 @@ class LibraryViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             migrateLegacyJsonCacheIfNeeded()
 
-            // 订阅 Room：音乐库表的任何变化（扫描写入、播放次数自增）都会自动同步到 allSongs。
+            // 同时订阅 song_library（歌曲元数据，任何写入如播放次数自增都会重新
+            // emit）和 song_cover（封面缩略图，只在扫描时写入，平时几乎不变）
+            // 两张表，用 combine 合并成完整的 SongEntry 列表。
             //
-            // 重要：coverBytes 是 SongEntry 上纯内存态的字段，SongLibraryEntity 数据库表里
-            // 根本没有这一列（见 toSongEntry()），所以每次这里重新 map 出来的 SongEntry
-            // 都是全新对象、coverBytes 天生是 null。而 Room 的 observeAll() 是对整张表的
-            // 响应式订阅，哪怕只是一次跟封面完全无关的写入（例如 MusicPlayer.playAt() 里
-            // incrementPlayCount 自增播放次数），也会导致整张表重新查询、全部 SongEntry
-            // 被替换成新实例——此前已经异步加载好、存在旧对象上的 coverBytes 就会跟着丢失，
-            // 表现为：点歌播放一次后返回列表，所有封面（不只是刚播放的那首）全部消失，
-            // 且因为 coverRequestedPaths 仍标记着这些 path"已经请求过"，不会重新触发磁盘
-            // 读取，必须等切换分类 tab 让整个 SongListScreen 连带 LaunchedEffect 状态一起
-            // 重置才会恢复。
+            // 两张表分开的原因见 SongCoverEntity 上的注释：避免播放次数自增
+            // 这种跟封面无关的写入，拖累封面 BLOB 被重复整表读取一遍。
             //
-            // 修复：重新 map 出新对象后，从旧的 allSongs.value 里按 path 找到对应旧对象，
-            // 把已经加载好的 coverBytes 迁移过去，避免"数据库任意写入=封面全部丢失"。
-            songLibraryDao.observeAll()
-                .onEach { entities ->
-                    val previousByPath = allSongs.value.associateBy { it.path }
-                    val songs = entities.map { entity ->
-                        entity.toSongEntry().also { newSong ->
-                            previousByPath[newSong.path]?.coverBytes?.let { newSong.coverBytes = it }
-                        }
+            // 封面数据现在完全来自数据库（扫描阶段生成好的缩略图），不再需要
+            // 运行时按需读取音频文件封面的那套逻辑（原来的 requestCovers /
+            // coverRequestedPaths / coverVersion），也不需要"从旧对象迁移
+            // coverBytes"这种补丁——song_cover 表本身就是持久化的，combine
+            // 出来的新对象天然带着正确的封面数据。
+            combine(
+                songLibraryDao.observeAll(),
+                songCoverDao.observeAll()
+            ) { libraryEntities, coverEntities ->
+                val coverByPath = coverEntities.associateBy({ it.path }, { it.coverBytes })
+                libraryEntities.map { entity ->
+                    entity.toSongEntry().also { song ->
+                        song.coverBytes = coverByPath[song.path]
                     }
+                }
+            }
+                .onEach { songs ->
                     allSongs.value = songs
                     if (songs.isNotEmpty() && metaLoadCount.value == 0) {
                         metaLoadCount.value = songs.size
@@ -224,7 +226,6 @@ class LibraryViewModel(app: Application) : AndroidViewModel(app) {
         scanCompleted.value = false
         scanProgressLines.value = emptyList()
         metaLoadCount.value = 0
-        resetCovers()
         viewModelScope.launch {
             val blacklist = FolderBlacklist.get()
             val filters = ScanFiltersStore.get()
@@ -258,19 +259,29 @@ class LibraryViewModel(app: Application) : AndroidViewModel(app) {
             // 比原来的完全串行处理明显更快，尤其在多核设备上。
             // 落盘只在全部完成后做一次整表替换，避免"每处理 20 首就重新写一次全部
             // 已扫描歌曲"这种随列表增长而越来越慢的 O(N^2) 开销。
+            //
+            // 封面处理：与标题/艺人/专辑一起在这一轮并发里顺路读出来
+            // （tag?.firstArtwork 本来就要访问同一个已打开的音频文件句柄，
+            // 不需要额外一次文件 IO），压缩成小尺寸缩略图后收集到
+            // coverEntries，扫描全部完成后统一写入 song_cover 表。
+            // 扫描时间会因此变长一些（多了一步位图解码+重新编码），但换来
+            // 运行时列表/专辑网格展示不再需要任何额外的封面读取逻辑——
+            // 用户已确认这个取舍是可接受的。
+            val coverEntries = java.util.Collections.synchronizedList(mutableListOf<SongCoverEntity>())
             withContext(Dispatchers.IO) {
                 val semaphore = kotlinx.coroutines.sync.Semaphore(4)
                 val processedCount = java.util.concurrent.atomic.AtomicInteger(0)
                 songs.map { song ->
                     async {
                         semaphore.withPermit {
-                            val meta = AudioMetadataReader.readFile(song.path)
+                            val meta = AudioMetadataReader.readFile(song.path, compressCoverForThumbnail = true)
                             song.title = meta.title?.takeIf { it.isNotEmpty() }
                                 ?: song.name.substringBeforeLast('.', song.name)
                             song.artist = meta.artist ?: ""
                             song.album = meta.album ?: ""
                             song.lyrics = meta.lyrics ?: ""
                             song.metadataLoaded = true
+                            meta.coverBytes?.let { coverEntries.add(SongCoverEntity(song.path, it)) }
                             val done = processedCount.incrementAndGet()
                             if (done % 20 == 0) {
                                 withContext(Dispatchers.Main) { metaLoadCount.value = done }
@@ -280,12 +291,17 @@ class LibraryViewModel(app: Application) : AndroidViewModel(app) {
                 }.awaitAll()
             }
             val deduped = if (filters.dedupeEnabled) dedupeSongs(songs) else songs
+            val dedupedPaths = deduped.mapTo(mutableSetOf()) { it.path }
             withContext(Dispatchers.IO) {
                 songLibraryDao.replaceAll(deduped.map { it.toLibraryEntity() })
+                // 只保留去重后仍然存在的曲目的封面，避免被去重掉的重复文件
+                // 白白占用封面表空间。
+                songCoverDao.insertAll(coverEntries.filter { it.path in dedupedPaths })
+                songCoverDao.deleteOrphaned()
             }
             withContext(Dispatchers.Main) { metaLoadCount.value = deduped.size }
-            // allSongs / sortedSongsFlow 会通过 songLibraryDao.observeAll() 的 Flow 自动刷新，
-            // 这里不需要再手动赋值。
+            // allSongs / sortedSongsFlow 会通过 songLibraryDao.observeAll() +
+            // songCoverDao.observeAll() 的合并 Flow 自动刷新，这里不需要再手动赋值。
             lastScanTotal.value = deduped.size
             isScanning.value = false
             scanCompleted.value = true
@@ -293,15 +309,8 @@ class LibraryViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun resetCovers() {
-        coverLoadGeneration++
-        coverRequestedPaths.clear()
-        allSongs.value.forEach { it.coverBytes = null }
-        coverVersion.value++
-    }
-
     /**
-     * 清理扫描数据：清空音乐库缓存（Room 表）、封面加载状态与内存中的歌曲列表。
+     * 清理扫描数据：清空音乐库缓存（Room 表，含封面缓存表）与内存中的歌曲列表。
      * 不清空收藏 / 歌单 / 播放历史（那些是用户产生的数据，不属于"扫描数据"）。
      *
      * 注：播放次数现在和歌曲同表存储，清空扫描数据会连带清空播放次数——这与旧版本
@@ -312,58 +321,11 @@ class LibraryViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
                 songLibraryDao.clearAll()
+                songCoverDao.clearAll()
             }
             StorageService.delete(StorageService.kLastScanCompletedAt)
             metaLoadCount.value = 0
             lastScanTotal.value = 0
-            resetCovers()
-        }
-    }
-
-    /**
-     * 请求加载指定歌曲的封面（自动去重，每 20 首刷新一次 UI）。
-     *
-     * 注意：[coverRequestedPaths] 只用于避免同一首歌被重复触发磁盘 IO 读取，
-     * 不能同时决定"要不要通知 UI 刷新"——例如从播放页返回歌曲列表时，
-     * SongListScreen 会被 NavHost 整个重新创建，此时这批歌可能早已被
-     * 请求过封面（甚至播放器本身在 MusicPlayer.loadMetadata 里也补写过
-     * song.coverBytes），如果这里因为"已经请求过"直接 return、不发出
-     * coverVersion 通知，新创建的列表行在它们首次组合的那一刻如果读到的
-     * 还是尚未写入完成的旧值，就会永久停留在空封面，直到用户切换分类 tab
-     * 使页面整体重建才会恢复。因此即使无需重新触发 IO，只要这批歌里有
-     * 已经带着封面数据的，也要发一次 coverVersion 通知，让已经创建的
-     * UI 补一次读取。
-     */
-    fun requestCovers(songs: List<SongEntry>) {
-        val toLoad = songs.filter { it.path !in coverRequestedPaths }
-        if (toLoad.isEmpty()) {
-            if (songs.any { it.coverBytes != null }) {
-                coverVersion.value++
-            }
-            return
-        }
-        toLoad.forEach { coverRequestedPaths.add(it.path) }
-        val gen = coverLoadGeneration
-        // 已有封面数据但仍需要走 IO 去重跳过的歌曲（不在 toLoad 里），
-        // 同样可能是本次调用方（新建的列表页）第一次看到，先发一次通知。
-        val toLoadPaths = toLoad.mapTo(mutableSetOf()) { it.path }
-        if (songs.any { it.coverBytes != null && it.path !in toLoadPaths }) {
-            coverVersion.value++
-        }
-        viewModelScope.launch {
-            withContext(Dispatchers.IO) {
-                var processed = 0
-                for (song in toLoad) {
-                    if (coverLoadGeneration != gen) return@withContext
-                    val meta = AudioMetadataReader.readFile(song.path)
-                    song.coverBytes = meta.coverBytes
-                    processed++
-                    if (processed % 20 == 0) {
-                        withContext(Dispatchers.Main) { coverVersion.value++ }
-                    }
-                }
-                withContext(Dispatchers.Main) { coverVersion.value++ }
-            }
         }
     }
 
@@ -490,7 +452,6 @@ class LibraryViewModel(app: Application) : AndroidViewModel(app) {
     fun setCategory(c: Int) {
         currentCategory.value = c
         StorageService.setInt(StorageService.kMusicCategory, c)
-        resetCovers()
     }
 
     fun setSort(field: Int, ascending: Boolean) {
@@ -498,7 +459,6 @@ class LibraryViewModel(app: Application) : AndroidViewModel(app) {
         sortAscending.value = ascending
         StorageService.setInt(StorageService.kMusicSortField, field)
         StorageService.setBoolean(StorageService.kMusicSortAscending, ascending)
-        resetCovers()
         refreshSortedSongs()
     }
 

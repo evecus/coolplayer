@@ -206,7 +206,12 @@ class MusicPlayer(
                 _album.value = meta.album
             }
             if (meta.coverBytes != null) {
-                song.coverBytes = meta.coverBytes
+                // 注意：这里不再写 song.coverBytes——该字段现在语义上专指
+                // SongCoverEntity 数据库表里的小图缩略图（见 SongEntry 上的
+                // 注释），播放页展示走独立的 _coverBytes（下方），继续把这里
+                // 读到的原始大图写进 song.coverBytes 只会造成语义混淆，
+                // 且对展示没有任何实际作用（下一次数据库 Flow emit 就会用
+                // 一个全新对象替换掉它）。
                 _coverBytes.value = meta.coverBytes
                 updateMediaSessionArtwork(meta.coverBytes)
             }

@@ -121,6 +121,41 @@ data class SongLibraryEntity(
     val playCount: Int = 0
 )
 
+/**
+ * 歌曲封面缩略图（独立建表，不放进 [SongLibraryEntity]）。
+ *
+ * 原因：[SongLibraryDao.observeAll] 是对整张 song_library 表的响应式订阅，
+ * 任何一行的任何字段变化（哪怕只是 incrementPlayCount 自增播放次数）都会
+ * 导致 Room 把整表重新查出来。如果封面 BLOB 和歌曲元数据同表，2000+ 首歌
+ * 每首几十 KB 的封面数据，会在每次任意一次播放次数自增时被整批重新读取
+ * 一遍——单独建表后，播放次数更新只触碰 song_library，不会牵连封面表。
+ *
+ * 扫描时（[com.coolplayer.music.ui.library.LibraryViewModel.rescan]）
+ * 生成并写入：读取音频文件内嵌的原始封面后，降采样压缩成列表/专辑网格
+ * 展示用的小图（体积通常只有原图的几十分之一），存这里长期复用。
+ * 播放页需要的高画质大图不走这张表，由 [com.coolplayer.music.player.MusicPlayer]
+ * 播放时现读音频文件原始封面，保证画质。
+ */
+@Entity(tableName = "song_cover")
+data class SongCoverEntity(
+    @PrimaryKey val path: String,
+    val coverBytes: ByteArray
+) {
+    // Room 生成的 equals/hashCode 默认用于 diff 判断；ByteArray 需要手写内容比较，
+    // 否则 data class 默认生成的是引用比较，两次查询出来的不同实例永远判定"不相等"。
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is SongCoverEntity) return false
+        return path == other.path && coverBytes.contentEquals(other.coverBytes)
+    }
+
+    override fun hashCode(): Int {
+        var result = path.hashCode()
+        result = 31 * result + coverBytes.contentHashCode()
+        return result
+    }
+}
+
 // ── DAO ─────────────────────────────────────────────────────────────────
 
 @Dao
@@ -424,6 +459,41 @@ interface SongLibraryDao {
     suspend fun groupByFolder(): List<GroupStat>
 }
 
+/**
+ * 歌曲封面缩略图 DAO。独立于 [SongLibraryDao]，详见 [SongCoverEntity] 上的说明。
+ */
+@Dao
+interface SongCoverDao {
+    /**
+     * 只查 path 和 coverBytes 两列。列表/专辑网格展示只需要按 path 查小图，
+     * 不需要跟 song_library 的其它列 join 在一起。
+     */
+    @Query("SELECT * FROM song_cover")
+    fun observeAll(): Flow<List<SongCoverEntity>>
+
+    @Query("SELECT * FROM song_cover WHERE path = :path LIMIT 1")
+    suspend fun getByPath(path: String): SongCoverEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(covers: List<SongCoverEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(cover: SongCoverEntity)
+
+    @Query("DELETE FROM song_cover WHERE path = :path")
+    suspend fun delete(path: String)
+
+    @Query("DELETE FROM song_cover")
+    suspend fun clearAll()
+
+    /**
+     * 扫描完成后，删掉已经不在最新歌曲列表里的封面（被删除/移动走的歌曲），
+     * 避免封面表随着反复扫描无限增长。用 NOT IN 一次性清理，避免逐条 DELETE。
+     */
+    @Query("DELETE FROM song_cover WHERE path NOT IN (SELECT path FROM song_library)")
+    suspend fun deleteOrphaned()
+}
+
 /** 分组统计投影（专辑 / 文件夹分组页的轻量计数，不加载歌曲本身）。 */
 data class GroupStat(
     val groupKey: String,
@@ -439,9 +509,10 @@ data class GroupStat(
         PlaylistEntity::class,
         PlaylistSongEntity::class,
         HistoryEntity::class,
-        SongLibraryEntity::class
+        SongLibraryEntity::class,
+        SongCoverEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -449,6 +520,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun playlistDao(): PlaylistDao
     abstract fun historyDao(): HistoryDao
     abstract fun songLibraryDao(): SongLibraryDao
+    abstract fun songCoverDao(): SongCoverDao
 
     companion object {
         @Volatile
@@ -486,6 +558,25 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v2 -> v3：新增 song_cover 表（歌曲封面缩略图，独立于 song_library，见
+         * [SongCoverEntity] 上的说明）。旧版本里封面是纯内存态字段，不需要迁移
+         * 任何既有数据——迁移后表是空的，下一次扫描（[com.coolplayer.music.ui.library.LibraryViewModel.rescan]）
+         * 会重新读取所有音频文件的封面并填充这张表。
+         */
+        private val MIGRATION_2_3 = object : androidx.room.migration.Migration(2, 3) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `song_cover` (
+                        `path` TEXT NOT NULL PRIMARY KEY,
+                        `coverBytes` BLOB NOT NULL
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
         fun get(context: android.content.Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -493,7 +584,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "salt_music.db"
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build().also { INSTANCE = it }
             }
         }

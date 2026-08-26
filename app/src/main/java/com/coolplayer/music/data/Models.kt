@@ -34,7 +34,14 @@ data class MusicGroupEntry(
 )
 
 // ── 歌曲项 ─────────────────────────────────────────────────────────────
-// 注意：title/artist/album/lyrics/coverBytes 都是可变的，扫描后异步加载元数据时回填。
+// 注意：title/artist/album/lyrics 是可变的，扫描后异步加载元数据时回填。
+//
+// coverBytes 同样可变，但语义上现在是"从 SongCoverEntity 数据库缓存表读出来
+// 的列表/专辑网格用小图缩略图"（扫描时预生成好写入数据库，见
+// LibraryViewModel.rescan），不再是"运行时临时读取音频文件的任意精度封面"。
+// 内存里只是把数据库查出来的这份数据挂在对象上，供列表页展示，本身体积已经
+// 很小（扫描时被压缩到长边 300px 左右）。播放页需要的高画质大图不用这个
+// 字段，由 MusicPlayer 播放时直接读取音频文件原始封面。
 
 class SongEntry(
     val path: String,
@@ -50,6 +57,7 @@ class SongEntry(
     var metadataLoaded: Boolean = false
     var coverPath: String = ""
     var lyrics: String = ""
+    /** 列表/专辑网格展示用的小图缩略图，来自 [SongCoverEntity] 数据库表。 */
     var coverBytes: ByteArray? = null
     /** 播放次数。不持久化在自身 JSON 中，由 [PlayCountStore] 统一存取、启动时批量回填。 */
     var playCount: Int = 0
