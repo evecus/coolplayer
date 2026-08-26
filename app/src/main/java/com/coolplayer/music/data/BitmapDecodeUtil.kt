@@ -45,22 +45,23 @@ object BitmapDecodeUtil {
      * 封面缓存表）。
      *
      * 这份缩略图**只供歌曲列表展示使用**（列表行封面 40~52dp，3 倍密度下
-     * 物理像素约 120~160px）——默认参数故意不追求接近原图的画质，因为用户
-     * 在滚动列表时不会放大细看。播放页需要的高画质大图**不使用这份
-     * 缩略图**，而是由 [com.coolplayer.music.player.MusicPlayer] 播放时
-     * 现读音频文件的原始封面（未压缩），保证最佳画质，反正同一时刻只有
-     * 一首歌在播放，现读一次的开销可以接受。
+     * 物理像素约 120~160px，maxDimenPx=120 对齐常见的 40dp@3x 场景）——
+     * 默认参数故意不追求接近原图的画质，因为用户在滚动列表时不会放大细看。
+     * 播放页需要的高画质大图**不使用这份缩略图**，而是由
+     * [com.coolplayer.music.player.MusicPlayer] 播放时现读音频文件的原始
+     * 封面（未压缩），保证最佳画质，反正同一时刻只有一首歌在播放，现读
+     * 一次的开销可以接受。
      *
-     * 压缩到长边 [maxDimenPx]、JPEG 质量 [quality] 后，单张通常只有 2~5 KB，
-     * 2000+ 首歌全部缓存也只占用数据库文件几 MB～十几 MB 磁盘空间，
+     * 压缩到长边 [maxDimenPx]、JPEG 质量 [quality] 后，单张通常只有 1~2.5 KB，
+     * 2000+ 首歌全部缓存也只占用数据库文件几 MB 磁盘空间，
      * 且不占用常驻内存（内存里只有 Coil 对当前可见列表项的短暂 LRU 缓存）。
      *
      * 解码失败（非图片数据、损坏等）时返回 null，调用方应保留不写入该曲目的封面。
      */
     fun compressForStorage(
         originalBytes: ByteArray,
-        maxDimenPx: Int = 160,
-        quality: Int = 60
+        maxDimenPx: Int = 120,
+        quality: Int = 55
     ): ByteArray? = runCatching {
         val bmp = decodeSampled(originalBytes, maxDimenPx) ?: return@runCatching null
         ByteArrayOutputStream().use { out ->
