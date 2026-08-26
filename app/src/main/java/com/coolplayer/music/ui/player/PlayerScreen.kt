@@ -69,7 +69,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
@@ -282,7 +281,6 @@ fun PlayerScreen(
                                 CoverDisplay(
                                     coverBytes = coverBytes,
                                     size = coverSize,
-                                    isPlaying = isPlaying,
                                     modifier = Modifier.padding(16.dp)
                                 )
                             }
@@ -306,8 +304,7 @@ fun PlayerScreen(
                                 if (page == 0) {
                                     CoverDisplay(
                                         coverBytes = coverBytes,
-                                        size = coverSize,
-                                        isPlaying = isPlaying
+                                        size = coverSize
                                     )
                                 } else {
                                     LyricsPane(
@@ -435,18 +432,15 @@ private fun ImmersiveBackground(
     }
 }
 
-// ── 封面展示（带旋转动画） ──────────────────────────────────────────────
+// ── 封面展示 ──────────────────────────────────────────────────────────
 
 @Composable
 private fun CoverDisplay(
     coverBytes: ByteArray?,
     size: Dp,
-    isPlaying: Boolean,
     modifier: Modifier = Modifier
 ) {
     val scheme = MaterialTheme.colorScheme
-    // 黑胶旋转动画
-    val rotation = produceCoverRotation(isPlaying)
     if (coverBytes != null) {
         coil.compose.SubcomposeAsyncImage(
             model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
@@ -457,14 +451,13 @@ private fun CoverDisplay(
             contentScale = ContentScale.Crop,
             modifier = modifier
                 .size(size)
-                .clip(RoundedCornerShape(12.dp))
-                .graphicsLayer { this.rotationZ = rotation },
-            loading = { NoCoverPlaceholder(size = size, scheme = scheme, modifier = Modifier.graphicsLayer { this.rotationZ = rotation }) },
-            error = { NoCoverPlaceholder(size = size, scheme = scheme, modifier = Modifier.graphicsLayer { this.rotationZ = rotation }) }
+                .clip(RoundedCornerShape(12.dp)),
+            loading = { NoCoverPlaceholder(size = size, scheme = scheme, modifier = Modifier) },
+            error = { NoCoverPlaceholder(size = size, scheme = scheme, modifier = Modifier) }
         )
         return
     }
-    NoCoverPlaceholder(size = size, scheme = scheme, modifier = modifier.graphicsLayer { this.rotationZ = rotation })
+    NoCoverPlaceholder(size = size, scheme = scheme, modifier = modifier)
 }
 
 @Composable
@@ -491,19 +484,6 @@ private fun NoCoverPlaceholder(
             color = scheme.onBackground.copy(alpha = 0.6f)
         )
     }
-}
-
-/** 黑胶旋转动画：播放时每 20 秒转一圈，暂停时停止。 */
-@Composable
-private fun produceCoverRotation(isPlaying: Boolean): Float {
-    var rotation by remember { mutableStateOf(0f) }
-    LaunchedEffect(isPlaying) {
-        while (isPlaying) {
-            delay(50)
-            rotation = (rotation + 0.9f) % 360f  // 360 / 0.9 = 400 帧 * 50ms = 20s/圈
-        }
-    }
-    return rotation
 }
 
 // ── 进度条 ─────────────────────────────────────────────────────────────
