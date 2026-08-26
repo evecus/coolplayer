@@ -208,12 +208,24 @@ class LrcViewState {
         currentIndex = 0
     }
 
-    /** 根据播放进度更新当前高亮行。 */
+    /**
+     * 根据播放进度更新当前高亮行。
+     *
+     * 播放中每 200ms 被调用一次（见 [com.coolplayer.music.player.MusicPlayer] 的
+     * position polling）。之前每次都从头线性扫描全部歌词行找当前行，正常播放时
+     * 进度是单调递增的，从上次的 [currentIndex] 开始往后找即可命中，不需要从头扫。
+     * 只有 seek 导致进度跳变（新位置早于当前行）时才回退重新定位。
+     */
     fun updateProgress(positionMs: Long) {
         if (isPlain || lines.isEmpty()) return
-        var idx = 0
-        for (i in lines.indices) {
-            if (lines[i].time <= positionMs) idx = i else break
+        var idx = currentIndex.coerceIn(0, lines.lastIndex)
+        if (lines[idx].time > positionMs) {
+            // 位置回退（seek 到更早的地方）：从头找。
+            idx = 0
+            while (idx < lines.lastIndex && lines[idx + 1].time <= positionMs) idx++
+        } else {
+            // 正常前进：从当前行往后找，不用回到 0。
+            while (idx < lines.lastIndex && lines[idx + 1].time <= positionMs) idx++
         }
         if (idx != currentIndex) currentIndex = idx
     }

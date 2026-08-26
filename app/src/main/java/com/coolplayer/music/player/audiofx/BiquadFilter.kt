@@ -82,6 +82,14 @@ class BiquadFilter {
         z2 = 0.0
     }
 
+    /**
+     * 导出算好的系数 [b0, b1, b2, a1, a2]，供
+     * [com.coolplayer.music.player.audiofx.ParametricEqAudioProcessor] 打平成
+     * primitive 数组后在热路径里直接使用，避免逐采样点做跨对象方法调用。
+     * 本类实例只在 [configure] 阶段临时使用，导出系数后即可丢弃。
+     */
+    fun exportCoefficients(): DoubleArray = doubleArrayOf(b0, b1, b2, a1, a2)
+
     /** 处理单个采样点（Direct Form II Transposed），输入输出均为 [-1, 1] 归一化浮点样本。 */
     fun process(input: Double): Double {
         val out = b0 * input + z1

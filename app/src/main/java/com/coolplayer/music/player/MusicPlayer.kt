@@ -22,6 +22,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -137,12 +138,20 @@ class MusicPlayer(
         posPollJob?.cancel()
         posPollJob = scope.launch {
             while (true) {
-                val pos = exoPlayer.currentPosition.coerceAtLeast(0L)
-                _position.value = pos
-                val rawDur = exoPlayer.duration
-                val dur = if (rawDur == C.TIME_UNSET || rawDur < 0) 0L else rawDur
-                if (dur != _duration.value && dur > 0) _duration.value = dur
-                kotlinx.coroutines.delay(200L)
+                // 只在真正播放时才轮询进度；暂停/无内容时完全挂起，不做任何工作。
+                // 之前是无条件 while(true) + delay(200)，哪怕暂停或没有加载歌曲也
+                // 一直在跑，是待机时 CPU 占用偏高的来源之一。
+                if (_isPlaying.value) {
+                    val pos = exoPlayer.currentPosition.coerceAtLeast(0L)
+                    _position.value = pos
+                    val rawDur = exoPlayer.duration
+                    val dur = if (rawDur == C.TIME_UNSET || rawDur < 0) 0L else rawDur
+                    if (dur != _duration.value && dur > 0) _duration.value = dur
+                    kotlinx.coroutines.delay(200L)
+                } else {
+                    // 暂停中：挂起等待恢复播放，不轮询、不占 CPU。
+                    _isPlaying.first { playing -> playing }
+                }
             }
         }
     }
