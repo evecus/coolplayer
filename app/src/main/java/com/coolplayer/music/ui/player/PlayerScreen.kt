@@ -1,6 +1,5 @@
 package com.coolplayer.music.ui.player
 
-import android.graphics.BitmapFactory
 import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -382,11 +381,11 @@ private fun ImmersiveBackground(
     seedColor: Color,
     modifier: Modifier = Modifier
 ) {
+    // 背景要做高斯模糊，糊开后看不出细节差异，降采样到 200px 既足够模糊效果
+    // 使用，又避免为了一张背景图就完整解码原始高分辨率封面。
     val bmp = remember(coverBytes) {
         if (coverBytes == null) null
-        else runCatching {
-            BitmapFactory.decodeByteArray(coverBytes, 0, coverBytes.size)
-        }.getOrNull()
+        else com.coolplayer.music.data.BitmapDecodeUtil.decodeSampled(coverBytes, maxDimenPx = 200)
     }
     Box(modifier = modifier) {
         if (bmp != null) {
@@ -449,27 +448,33 @@ private fun CoverDisplay(
     // 黑胶旋转动画
     val rotation = produceCoverRotation(isPlaying)
     if (coverBytes != null) {
-        val bmp = remember(coverBytes) {
-            runCatching {
-                BitmapFactory.decodeByteArray(coverBytes, 0, coverBytes.size)
-            }.getOrNull()
-        }
-        if (bmp != null) {
-            Image(
-                bitmap = bmp.asImageBitmap(),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = modifier
-                    .size(size)
-                    .clip(RoundedCornerShape(12.dp))
-                    .graphicsLayer { this.rotationZ = rotation }
-            )
-            return
-        }
+        coil.compose.SubcomposeAsyncImage(
+            model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+                .data(coverBytes)
+                .crossfade(false)
+                .build(),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = modifier
+                .size(size)
+                .clip(RoundedCornerShape(12.dp))
+                .graphicsLayer { this.rotationZ = rotation },
+            loading = { NoCoverPlaceholder(size = size, scheme = scheme, modifier = Modifier.graphicsLayer { this.rotationZ = rotation }) },
+            error = { NoCoverPlaceholder(size = size, scheme = scheme, modifier = Modifier.graphicsLayer { this.rotationZ = rotation }) }
+        )
+        return
     }
+    NoCoverPlaceholder(size = size, scheme = scheme, modifier = modifier.graphicsLayer { this.rotationZ = rotation })
+}
+
+@Composable
+private fun NoCoverPlaceholder(
+    size: Dp,
+    scheme: androidx.compose.material3.ColorScheme,
+    modifier: Modifier = Modifier
+) {
     Column(
-        modifier = modifier
-            .graphicsLayer { this.rotationZ = rotation },
+        modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {

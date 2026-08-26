@@ -1,6 +1,5 @@
 package com.coolplayer.music.ui.library
 
-import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -596,21 +595,26 @@ private fun AlbumGrid(vm: LibraryViewModel, groups: List<MusicGroupEntry>, navCo
 private fun AlbumCover(coverBytes: ByteArray?, modifier: Modifier = Modifier) {
     val tint = MaterialTheme.colorScheme.primary
     if (coverBytes != null) {
-        val bmp = remember(coverBytes) {
-            runCatching { BitmapFactory.decodeByteArray(coverBytes, 0, coverBytes.size) }.getOrNull()
-        }
-        if (bmp != null) {
-            Image(
-                bitmap = bmp.asImageBitmap(),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = modifier
-                    .aspectRatio(1f)
-                    .clip(RoundedCornerShape(12.dp))
-            )
-            return
-        }
+        coil.compose.SubcomposeAsyncImage(
+            model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+                .data(coverBytes)
+                .crossfade(false)
+                .build(),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = modifier
+                .aspectRatio(1f)
+                .clip(RoundedCornerShape(12.dp)),
+            loading = { AlbumCoverPlaceholder(tint = tint, modifier = Modifier) },
+            error = { AlbumCoverPlaceholder(tint = tint, modifier = Modifier) }
+        )
+        return
     }
+    AlbumCoverPlaceholder(tint = tint, modifier = modifier)
+}
+
+@Composable
+private fun AlbumCoverPlaceholder(tint: androidx.compose.ui.graphics.Color, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .aspectRatio(1f)
@@ -716,6 +720,11 @@ private fun GroupIcon(category: Int) {
 
 /**
  * 封面/音符占位组件。
+ *
+ * 用 Coil 的 [AsyncImage] 加载封面：Coil 会按 [size] 自动做降采样解码
+ * （而不是像之前 BitmapFactory.decodeByteArray 那样把内嵌原图按原始分辨率
+ * 完整解码进内存），并自带内存 LRU 缓存，滚动列表复用同一份 Bitmap 时
+ * 不会重复解码，显著降低内存占用和滚动时的 CPU 开销。
  */
 @Composable
 fun CoverOrNote(
@@ -726,23 +735,31 @@ fun CoverOrNote(
 ) {
     val tint = MaterialTheme.colorScheme.primary
     if (coverBytes != null) {
-        val bmp = remember(coverBytes) {
-            runCatching {
-                BitmapFactory.decodeByteArray(coverBytes, 0, coverBytes.size)
-            }.getOrNull()
-        }
-        if (bmp != null) {
-            Image(
-                bitmap = bmp.asImageBitmap(),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = modifier
-                    .size(size)
-                    .clip(RoundedCornerShape(6.dp))
-            )
-            return
-        }
+        coil.compose.SubcomposeAsyncImage(
+            model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+                .data(coverBytes)
+                .crossfade(false)
+                .build(),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = modifier
+                .size(size)
+                .clip(RoundedCornerShape(6.dp)),
+            loading = { CoverPlaceholder(tint = tint, size = size, iconSize = iconSize, modifier = Modifier) },
+            error = { CoverPlaceholder(tint = tint, size = size, iconSize = iconSize, modifier = Modifier) }
+        )
+        return
     }
+    CoverPlaceholder(tint = tint, size = size, iconSize = iconSize, modifier = modifier)
+}
+
+@Composable
+private fun CoverPlaceholder(
+    tint: androidx.compose.ui.graphics.Color,
+    size: androidx.compose.ui.unit.Dp,
+    iconSize: androidx.compose.ui.unit.Dp,
+    modifier: Modifier = Modifier
+) {
     Box(
         modifier = modifier
             .size(size)

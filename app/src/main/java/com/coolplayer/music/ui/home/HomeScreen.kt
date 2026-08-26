@@ -1,6 +1,5 @@
 package com.coolplayer.music.ui.home
 
-import android.graphics.BitmapFactory
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -552,23 +551,19 @@ private fun MiniPlaybackBar(player: MusicPlayer?, onClick: () -> Unit) {
             ) {
                 val cb = coverBytes
                 if (cb != null) {
-                    val bmp = remember(cb) {
-                        runCatching {
-                            BitmapFactory.decodeByteArray(cb, 0, cb.size)
-                        }.getOrNull()
-                    }
-                    if (bmp != null) {
-                        Image(
-                            bitmap = bmp.asImageBitmap(),
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                        )
-                    } else {
-                        PlaceholderCover()
-                    }
+                    coil.compose.SubcomposeAsyncImage(
+                        model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+                            .data(cb)
+                            .crossfade(false)
+                            .build(),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(RoundedCornerShape(8.dp)),
+                        loading = { PlaceholderCover() },
+                        error = { PlaceholderCover() }
+                    )
                 } else {
                     PlaceholderCover()
                 }

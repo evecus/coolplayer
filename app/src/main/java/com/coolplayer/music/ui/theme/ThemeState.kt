@@ -65,11 +65,14 @@ fun extractSeedFromBitmap(bitmap: Bitmap?, fallback: Color): Color {
 
 /**
  * 从字节数组解码封面后提取主题色。
+ *
+ * 用 [BitmapDecodeUtil.decodeSampled] 降采样到 100px 量级：Palette 取色
+ * 只需要色块分布，不需要原图分辨率，避免为了算个主题色就完整解码一张
+ * 可能几百万像素的封面图。
  */
 fun extractSeedFromBytes(bytes: ByteArray?, fallback: Color): Color {
     if (bytes == null) return fallback
-    val bmp = runCatching {
-        android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-    }.getOrNull() ?: return fallback
+    val bmp = com.coolplayer.music.data.BitmapDecodeUtil.decodeSampled(bytes, maxDimenPx = 100)
+        ?: return fallback
     return extractSeedFromBitmap(bmp, fallback)
 }

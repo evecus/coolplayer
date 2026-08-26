@@ -6,7 +6,6 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.graphics.BitmapFactory
 import android.os.Build
 import android.widget.RemoteViews
 import com.coolplayer.music.MainActivity
@@ -69,9 +68,9 @@ class MusicWidgetProvider : AppWidgetProvider() {
 
             val coverBytes = player?.coverBytes?.value
             if (coverBytes != null) {
-                val bmp = runCatching {
-                    BitmapFactory.decodeByteArray(coverBytes, 0, coverBytes.size)
-                }.getOrNull()
+                // 小组件封面显示尺寸通常在 60-80dp，降采样到 200px 上限即可，
+                // 避免把内嵌的原始高分辨率封面完整解码进内存。
+                val bmp = com.coolplayer.music.data.BitmapDecodeUtil.decodeSampled(coverBytes, maxDimenPx = 200)
                 if (bmp != null) {
                     views.setImageViewBitmap(R.id.widget_cover, bmp)
                 } else {

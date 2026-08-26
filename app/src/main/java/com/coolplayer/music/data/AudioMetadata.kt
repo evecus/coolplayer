@@ -47,9 +47,15 @@ object AudioMetadataReader {
             // 优先取内嵌歌词标签（部分格式为 LYRICS，部分为 UNSYNCED_LYRICS）
             val lyrics = tag?.getFirst(FieldKey.LYRICS)?.takeIf { it.isNotBlank() }
 
-            // 封面：取第一张内嵌图片（多数音频文件只有一张封面）
+            // 封面：取第一张内嵌图片（多数音频文件只有一张封面）。
+            // 原始内嵌图片可能是几百 KB 到几 MB 的高分辨率 JPEG/PNG，而
+            // coverBytes 是纯内存态字段、会长期常驻在 SongEntry 上（全量
+            // 2000+ 首歌都持有的话内存占用非常可观），这里先降采样压缩
+            // 成体积小得多的版本再存储，具体原因见 BitmapDecodeUtil 的注释。
             val coverBytes = runCatching {
-                tag?.firstArtwork?.binaryData
+                tag?.firstArtwork?.binaryData?.let { raw ->
+                    BitmapDecodeUtil.compressForStorage(raw) ?: raw
+                }
             }.getOrNull()
 
             AudioMetadata(title, artist, album, coverBytes, lyrics)

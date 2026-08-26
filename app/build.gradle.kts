@@ -19,7 +19,15 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // 之前是 false：release 包不做任何代码压缩/混淆，体积偏大，
+            // 且包含了所有依赖库里未被实际用到的代码。proguard-rules.pro
+            // 已经补全了 Media3 / Room / JAudioTagger（大量反射解析音频
+            // 标签，容易被误裁剪）/ Coroutines / Kotlin Metadata / Widget
+            // 与 Service 相关类的保留规则，并修正了其中一条写错包名、
+            // 完全没生效的规则（com.salt.music.data.** -> 实际包名
+            // com.coolplayer.music.data），现在可以安全开启。
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -93,8 +101,9 @@ dependencies {
     // Document file for scoped storage
     implementation("androidx.documentfile:documentfile:1.0.1")
 
-    // Glide (for widget bitmap loading)
-    implementation("com.github.bumptech.glide:glide:4.16.0")
+    // 说明：曾经引入过 Glide 用于 widget 封面加载，但实际全项目没有任何
+    // 代码引用它（widget 封面改用了 BitmapDecodeUtil 手写降采样解码，
+    // Compose 内的封面统一走 Coil），是完全未使用的死重量依赖，已移除。
 
     // JAudioTagger（Android 兼容 fork，来自 Kaned1as/jaudiotagger，JitPack 坐标沿用其曾用
     // GitHub 用户名 Adonai）：多格式（MP3/FLAC/OGG/M4A/WMA/APE/Opus 等）音频标签与内嵌
