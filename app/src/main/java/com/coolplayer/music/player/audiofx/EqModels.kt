@@ -5,8 +5,13 @@ package com.coolplayer.music.player.audiofx
  * PK  = Peaking（钟形，最常用，对应截图里 PEAKEQ 的每一段）
  * LSC = Low Shelf（低频架式）
  * HSC = High Shelf（高频架式）
+ * LPF = Low Pass（低通，低于 Fc 的通过，高于的衰减；对应 Salt 的 LowPass）
+ * HPF = High Pass（高通，高于 Fc 的通过，低于的衰减；对应 Salt 的 HighPass）
+ *
+ * 后两者与 Salt Player 的 EqualizerFilterType 全集对齐，
+ * 使 Salt 导出的预设（speq.equalizer-presets JSON）可以无损导入。
  */
-enum class FilterType { PK, LSC, HSC }
+enum class FilterType { PK, LSC, HSC, LPF, HPF }
 
 /**
  * 单个滤波器参数：中心频率 Fc、增益 Gain、品质因数 Q。
