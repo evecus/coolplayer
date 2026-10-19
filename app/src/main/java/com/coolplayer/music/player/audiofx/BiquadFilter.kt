@@ -8,7 +8,9 @@ import kotlin.math.sqrt
 
 /**
  * 单个双二阶（Biquad）IIR 滤波器，系数公式来自 RBJ Audio EQ Cookbook。
- * 支持三种类型：Peaking（钟形增益/衰减）、Low Shelf、High Shelf。
+ * 支持五种类型：Peaking（钟形增益/衰减）、Low Shelf、High Shelf、
+ * Low Pass、High Pass。与 Salt Player 的 EqualizerFilterType 全集一致，
+ * 保证 Salt 预设（含 LowPass/HighPass 频段）导入后不失真、不丢段。
  *
  * 每个滤波器维护自己独立的历史样本（x1,x2,y1,y2），因此每个声道需要一个独立实例。
  */
@@ -69,6 +71,24 @@ class BiquadFilter {
                 a0 = (a + 1) - (a - 1) * cosw0 + twoSqrtAAlpha
                 a1 = 2.0 * ((a - 1) - (a + 1) * cosw0)
                 a2 = (a + 1) - (a - 1) * cosw0 - twoSqrtAAlpha
+            }
+            FilterType.LPF -> {
+                // 低通：gain 字段无效（-3dB 点就在 Fc），只取 freq/q
+                b0 = (1.0 - cosw0) / 2.0
+                b1 = 1.0 - cosw0
+                b2 = (1.0 - cosw0) / 2.0
+                a0 = 1.0 + alpha
+                a1 = -2.0 * cosw0
+                a2 = 1.0 - alpha
+            }
+            FilterType.HPF -> {
+                // 高通：同上，gain 字段无效
+                b0 = (1.0 + cosw0) / 2.0
+                b1 = -(1.0 + cosw0)
+                b2 = (1.0 + cosw0) / 2.0
+                a0 = 1.0 + alpha
+                a1 = -2.0 * cosw0
+                a2 = 1.0 - alpha
             }
         }
 
