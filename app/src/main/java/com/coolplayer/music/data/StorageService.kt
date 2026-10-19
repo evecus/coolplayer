@@ -142,4 +142,7 @@ object StorageService {
     const val kLyricsLineSpacing = "lyrics_line_spacing"
     const val kLyricsAlignment = "lyrics_alignment"
     const val kLyricsFontWeight = "lyrics_font_weight"
+
+    /** 淡入淡出开关（移植自 Salt Player 的 fade_in_or_out_during_play_or_pause，默认开启）。 */
+    const val kFadeInOut = "fade_in_out"
 }

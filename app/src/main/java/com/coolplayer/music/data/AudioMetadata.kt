@@ -84,6 +84,28 @@ object AudioMetadataReader {
         return result
     }
 
+    /**
+     * 只读取内嵌封面字节，跳过标签字段解析与外部 LRC 查找。
+     *
+     * 用于播放页：数据库里已经有完整标签（扫描阶段持久化），但播放页要展示
+     * 原图画质，此时只需要 artwork 一份数据。相比 [readFile] 省掉了
+     * 标签字段遍历与副作用文件查找，配合
+     * [com.coolplayer.music.player.CoverCache] 可在绝大多数切歌场景下
+     * 完全避免读盘。
+     *
+     * 注意：JAudioTagger 的 `AudioFileIO.read` 内部仍会读取音频头（用于
+     * 判断容器格式），这是该库无法绕过的部分；真正的收益来自命中缓存时
+     * 连文件都不打开。
+     */
+    fun readCoverOnly(filePath: String): ByteArray? {
+        val file = File(filePath)
+        if (!file.exists()) return null
+        return runCatching {
+            val audioFile = AudioFileIO.read(file)
+            audioFile.tag?.firstArtwork?.binaryData
+        }.getOrNull()
+    }
+
     private fun readSidecarLrc(audioPath: String): String? {
         val base = audioPath.substringBeforeLast('.', audioPath)
         for (ext in listOf(".lrc", ".LRC")) {

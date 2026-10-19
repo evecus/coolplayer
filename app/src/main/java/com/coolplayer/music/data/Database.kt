@@ -256,6 +256,10 @@ interface SongLibraryDao {
     @Query("SELECT * FROM song_library WHERE path = :path LIMIT 1")
     suspend fun getByPath(path: String): SongLibraryEntity?
 
+    /** 按路径集合批量查询（供恢复上次播放列表使用，避免逐路径 N 次查询）。 */
+    @Query("SELECT * FROM song_library WHERE path IN (:paths)")
+    suspend fun getByPaths(paths: List<String>): List<SongLibraryEntity>
+
     // ── 整表替换（扫描完成后调用） ───────────────────────────────────────
     @Transaction
     suspend fun replaceAll(songs: List<SongLibraryEntity>) {
