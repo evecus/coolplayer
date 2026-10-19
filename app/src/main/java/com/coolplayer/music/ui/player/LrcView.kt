@@ -1,14 +1,14 @@
 package com.coolplayer.music.ui.player
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -26,6 +26,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.BoxWithConstraints
 import com.coolplayer.music.data.LrcLine
 import com.coolplayer.music.data.StorageService
 
@@ -134,7 +135,7 @@ object LyricsSettingsState {
  * - [setText] 解析 LRC 文本为时间轴行（支持多时间戳行 `[00:01.00][00:30.00]lyric`），
  *   跳过 ID3 元数据标签行（`[ar:...]` `[ti:...]` 等），过滤制作信息行（词曲编混等）；
  *   无时间戳时作为纯文本展示。
- * - [updateProgress] 根据当前播放进度（ms）更新高亮行。
+ * - [updateProgress] 根据当前进度（ms）更新高亮行。
  */
 class LrcViewState {
 
@@ -146,10 +147,6 @@ class LrcViewState {
         private set
     var currentIndex by mutableStateOf(0)
         private set
-
-    /** 由 Layout 测量阶段写入的目标垂直偏移，驱动 [animateFloatAsState] 平滑滚动。 */
-    var targetOffset by mutableStateOf(0f)
-        internal set
 
     fun setText(lrcText: String) {
         if (lrcText.isBlank()) {
@@ -211,10 +208,10 @@ class LrcViewState {
     /**
      * 根据播放进度更新当前高亮行。
      *
-     * 播放中每 200ms 被调用一次（见 [com.coolplayer.music.player.MusicPlayer] 的
-     * position polling）。之前每次都从头线性扫描全部歌词行找当前行，正常播放时
-     * 进度是单调递增的，从上次的 [currentIndex] 开始往后找即可命中，不需要从头扫。
-     * 只有 seek 导致进度跳变（新位置早于当前行）时才回退重新定位。
+     * 播放中每 500ms 被调用一次（见 [com.coolplayer.music.player.MusicPlayer] 的
+     * position polling）。正常播放时进度单调递增，从上次的 [currentIndex] 开始
+     * 往后找即可命中；只有 seek 导致进度跳变（新位置早于当前行）时才回退
+     * 重新定位。
      */
     fun updateProgress(positionMs: Long) {
         if (isPlain || lines.isEmpty()) return
@@ -235,12 +232,18 @@ class LrcViewState {
 fun rememberLrcViewState(): LrcViewState = remember { LrcViewState() }
 
 /**
- * LRC 歌词组件。用 Compose [Layout] 自绘。
+ * LRC 歌词组件。
  *
  * - 字号 / 行距 / 对齐 / 字重由 [LyricsSettingsState] 控制，保存后立即生效。
- * - 当前行（高亮）字号 +3、字重再粗一档，垂直居中并平滑滚动
- *   （[animateFloatAsState] 每帧逼近目标偏移）。
+ * - 当前行（高亮）字号 +3、字重再粗一档，并平滑滚动到视口垂直居中。
  * - 无时间戳时作为纯文本展示。
+ *
+ * 实现说明（性能，本次优化的重点之一）：
+ * 旧实现用 Compose [Layout] 自绘，每次重组都会把**全部**歌词行重新 measure
+ * （一首三分钟的歌常见 40~100 行；播放页此前随进度每 200ms 重组一次，等于
+ * 每秒几百次 Text 测量，是播放时 UI 线程 CPU 的稳定开销，歌曲越长越明显）。
+ * 现改为 [LazyColumn] 虚拟列表：只有可见区域附近的行会被组合 / 测量，
+ * 高亮行切换只影响可见行，成本与歌曲总行数脱钩。
  *
  * [lineSpacing] 参数保留向后兼容，实际行距以 [LyricsSettingsState] 为准。
  */
@@ -269,23 +272,27 @@ fun LrcView(
     val highlightWeight = cfg.fontWeight.bumped()
 
     if (lrcState.isPlain) {
-        Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            if (lrcState.plainLines.isEmpty()) {
+        if (lrcState.plainLines.isEmpty()) {
+            Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(emptyText, color = normalColor.copy(alpha = 0.5f), fontSize = 14.sp)
-            } else {
-                Column(horizontalAlignment = columnAlign) {
-                    lrcState.plainLines.forEach { line ->
-                        Text(
-                            text = line,
-                            color = normalColor.copy(alpha = 0.6f),
-                            fontSize = normalSize,
-                            fontWeight = normalWeight,
-                            textAlign = textAlign,
-                            modifier = Modifier.padding(horizontal = 24.dp)
-                        )
-                        Spacer(Modifier.height(spacingDp.dp))
-                    }
-                }
+            }
+            return
+        }
+        LazyColumn(
+            modifier = modifier.fillMaxSize(),
+            horizontalAlignment = columnAlign,
+            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(spacingDp.dp)
+        ) {
+            itemsIndexed(lrcState.plainLines, key = { i, _ -> i }) { _, line ->
+                Text(
+                    text = line,
+                    color = normalColor.copy(alpha = 0.6f),
+                    fontSize = normalSize,
+                    fontWeight = normalWeight,
+                    textAlign = textAlign,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
         return
@@ -297,17 +304,29 @@ fun LrcView(
         return
     }
 
-    val density = LocalDensity.current
+    val listState = rememberLazyListState()
     val currentIdx = lrcState.currentIndex
-    val animated by animateFloatAsState(
-        targetValue = lrcState.targetOffset,
-        animationSpec = tween(durationMillis = 320),
-        label = "lrcOffset"
-    )
+    val density = LocalDensity.current
 
-    Layout(
-        content = {
-            lrcState.lines.forEachIndexed { i, line ->
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        val viewportHeightPx = with(density) { maxHeight.toPx() }
+        // 高亮行切换时平滑滚动到视口垂直居中；setText 后 lines.size 变化也重置一次。
+        LaunchedEffect(currentIdx, lrcState.lines.size) {
+            if (currentIdx in lrcState.lines.indices && viewportHeightPx > 0f) {
+                listState.animateScrollToItem(
+                    index = currentIdx,
+                    scrollOffset = -(viewportHeightPx / 2f).toInt()
+                )
+            }
+        }
+
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = columnAlign,
+            verticalArrangement = Arrangement.spacedBy(spacingDp.dp)
+        ) {
+            itemsIndexed(lrcState.lines, key = { i, _ -> i }) { i, line ->
                 val highlighted = i == currentIdx
                 Text(
                     text = line.text.ifEmpty { "♪" },
@@ -319,33 +338,6 @@ fun LrcView(
                         .fillMaxWidth()
                         .padding(horizontal = 24.dp)
                 )
-            }
-        },
-        modifier = modifier
-    ) { measurables, constraints ->
-        val spacingPx = with(density) { spacingDp.dp.roundToPx() }
-        val childConstraints = constraints.copy(minHeight = 0, maxHeight = Constraints.Infinity)
-        val placeables = measurables.map { it.measure(childConstraints) }
-        val viewportW = constraints.maxWidth
-        val viewportH = constraints.maxHeight
-        val bounded = viewportH != Constraints.Infinity && viewportH > 0
-
-        var y = 0
-        var currentCenter = 0
-        val ys = IntArray(placeables.size)
-        placeables.forEachIndexed { i, p ->
-            ys[i] = y
-            if (i == currentIdx) currentCenter = y + p.height / 2
-            y += p.height + spacingPx
-        }
-        val target = if (bounded) (viewportH / 2 - currentCenter).toFloat() else 0f
-        if (target != lrcState.targetOffset) lrcState.targetOffset = target
-
-        val layoutHeight = if (bounded) viewportH else y
-        layout(viewportW, layoutHeight) {
-            val off = animated.toInt()
-            placeables.forEachIndexed { i, p ->
-                p.placeRelative(0, ys[i] + off)
             }
         }
     }

@@ -91,6 +91,7 @@ import com.coolplayer.music.ui.theme.boundTabletWidth
 import com.coolplayer.music.ui.theme.currentWindowInfo
 import com.coolplayer.music.ui.theme.extractSeedFromBytes
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import java.util.Locale
@@ -122,7 +123,11 @@ fun PlayerScreen(
     val title by player.title.collectAsState()
     val artist by player.artist.collectAsState()
     val isPlaying by player.isPlaying.collectAsState()
-    val position by player.position.collectAsState()
+    // position 不在此处收集：它每 500ms 变一次，在顶层收集会导致整个
+    // PlayerScreen 重组（封面、控制栏、歌词全部重新求值）。改为把
+    // StateFlow 本身传给真正需要它的叶子组件（ProgressBar / LyricsPane），
+    // 由它们内部收集，重组范围收窄到各自的最小子树。
+    val positionFlow = player.position
     val duration by player.duration.collectAsState()
     val coverBytes by player.coverBytes.collectAsState()
     val lyrics by player.lyrics.collectAsState()
@@ -142,7 +147,8 @@ fun PlayerScreen(
     }
 
     val lrcState = rememberLrcViewState()
-    LaunchedEffect(position) { lrcState.updateProgress(position) }
+    // 进度 → 歌词高亮的收集已下沉到 LyricsPane 内部（见其 positionFlow 参数），
+    // 这里不再收集 position，避免整页跟随 500ms 进度 tick 重组。
 
     // 收藏状态：每次切歌时重新查询
     val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -289,6 +295,7 @@ fun PlayerScreen(
                                 highlightColor = scheme.primary,
                                 normalColor = scheme.onBackground,
                                 state = lrcState,
+                                positionFlow = positionFlow,
                                 onOpenSettings = { showLyricsSettings = true },
                                 modifier = Modifier.weight(0.9f).fillMaxSize()
                             )
@@ -312,6 +319,7 @@ fun PlayerScreen(
                                         highlightColor = scheme.primary,
                                         normalColor = scheme.onBackground,
                                         state = lrcState,
+                                        positionFlow = positionFlow,
                                         onOpenSettings = { showLyricsSettings = true },
                                         modifier = Modifier.fillMaxSize()
                                     )
@@ -322,8 +330,9 @@ fun PlayerScreen(
                 }
 
                 // 底部：进度条 + 控制按钮
+                // ProgressBar 内部收集 positionFlow，重组范围仅限进度条自身。
                 ProgressBar(
-                    position = position,
+                    positionFlow = positionFlow,
                     duration = duration,
                     onSeek = { player.seekTo(it) }
                 )
@@ -489,8 +498,11 @@ private fun NoCoverPlaceholder(
 // ── 进度条 ─────────────────────────────────────────────────────────────
 
 @Composable
-private fun ProgressBar(position: Long, duration: Long, onSeek: (Long) -> Unit) {
+private fun ProgressBar(positionFlow: StateFlow<Long>, duration: Long, onSeek: (Long) -> Unit) {
     val scheme = MaterialTheme.colorScheme
+    // 在进度条内部收集 position：只有本 composable 会随 500ms 的进度 tick 重组，
+    // 不会波及播放页其他部分（封面 / 歌词 / 控制栏）。
+    val position by positionFlow.collectAsState()
     val fraction = if (duration > 0) (position.toFloat() / duration).coerceIn(0f, 1f) else 0f
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -836,9 +848,16 @@ private fun LyricsPane(
     highlightColor: Color,
     normalColor: Color,
     state: LrcViewState,
+    positionFlow: StateFlow<Long>,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // 在歌词面板内部收集播放进度：position 每 500ms 变化一次，但只有
+    // currentIndex 真正切换时才会引起歌词列表的局部重组（LazyColumn 虚拟化，
+    // 仅可见行参与）。放在 PlayerScreen 顶层收集会导致整页重组。
+    LaunchedEffect(state) {
+        positionFlow.collect { state.updateProgress(it) }
+    }
     Box(modifier = modifier) {
         LrcView(
             lrcText = lyrics,
