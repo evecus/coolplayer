@@ -54,6 +54,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     var themeMode by remember { mutableStateOf(ThemeState.themeMode) }
     var dynamicColor by remember { mutableStateOf(ThemeState.dynamicColor) }
     var useCoverColor by remember { mutableStateOf(ThemeState.useCoverColor) }
+    var fadeInOut by remember { mutableStateOf(StorageService.getBoolean(StorageService.kFadeInOut, true)) }
     var homeSeed by remember { mutableStateOf(ThemeState.homeSeed) }
     var playerSeed by remember { mutableStateOf(ThemeState.playerSeed) }
 
@@ -69,9 +70,11 @@ fun SettingsScreen(onBack: () -> Unit) {
             themeMode = themeMode,
             dynamicColor = dynamicColor,
             useCoverColor = useCoverColor,
+            fadeInOut = fadeInOut,
             onThemeModeDialog = { showThemeDialog = true },
             onDynamicColorChange = { dynamicColor = it; ThemeState.dynamicColor = it },
             onUseCoverColorChange = { useCoverColor = it; ThemeState.useCoverColor = it },
+            onFadeInOutChange = { fadeInOut = it; StorageService.setBoolean(StorageService.kFadeInOut, it) },
             onHomeColorClick = { showHomeColorDialog = true },
             onPlayerColorClick = { showPlayerColorDialog = true },
             onBack = onBack
@@ -82,9 +85,11 @@ fun SettingsScreen(onBack: () -> Unit) {
             themeMode = themeMode,
             dynamicColor = dynamicColor,
             useCoverColor = useCoverColor,
+            fadeInOut = fadeInOut,
             onThemeModeDialog = { showThemeDialog = true },
             onDynamicColorChange = { dynamicColor = it; ThemeState.dynamicColor = it },
             onUseCoverColorChange = { useCoverColor = it; ThemeState.useCoverColor = it },
+            onFadeInOutChange = { fadeInOut = it; StorageService.setBoolean(StorageService.kFadeInOut, it) },
             onHomeColorClick = { showHomeColorDialog = true },
             onPlayerColorClick = { showPlayerColorDialog = true },
             onBack = onBack
@@ -130,9 +135,11 @@ private fun TabletSettingsLayout(
     themeMode: Int,
     dynamicColor: Boolean,
     useCoverColor: Boolean,
+    fadeInOut: Boolean,
     onThemeModeDialog: () -> Unit,
     onDynamicColorChange: (Boolean) -> Unit,
     onUseCoverColorChange: (Boolean) -> Unit,
+    onFadeInOutChange: (Boolean) -> Unit,
     onHomeColorClick: () -> Unit,
     onPlayerColorClick: () -> Unit,
     onBack: () -> Unit
@@ -214,6 +221,12 @@ private fun TabletSettingsLayout(
                         checked = useCoverColor
                     ) { onUseCoverColorChange(it) }
                     Spacer(Modifier.height(8.dp))
+                    SwitchItem(
+                        title = "淡入淡出",
+                        subtitle = "播放 / 暂停时 300ms 音量斜坡，避免突兀（移植自 Salt Player）",
+                        checked = fadeInOut
+                    ) { onFadeInOutChange(it) }
+                    Spacer(Modifier.height(8.dp))
                     SettingsItem(
                         title = "首页主题色",
                         subtitle = "手动选择首页主题色"
@@ -243,9 +256,11 @@ private fun PhoneSettingsLayout(
     themeMode: Int,
     dynamicColor: Boolean,
     useCoverColor: Boolean,
+    fadeInOut: Boolean,
     onThemeModeDialog: () -> Unit,
     onDynamicColorChange: (Boolean) -> Unit,
     onUseCoverColorChange: (Boolean) -> Unit,
+    onFadeInOutChange: (Boolean) -> Unit,
     onHomeColorClick: () -> Unit,
     onPlayerColorClick: () -> Unit,
     onBack: () -> Unit
@@ -306,6 +321,11 @@ private fun PhoneSettingsLayout(
                         subtitle = "从当前播放歌曲的封面提取主题色，覆盖播放页主色",
                         checked = useCoverColor
                     ) { onUseCoverColorChange(it) }
+                    SwitchItem(
+                        title = "淡入淡出",
+                        subtitle = "播放 / 暂停时 300ms 音量斜坡，避免突兀（移植自 Salt Player）",
+                        checked = fadeInOut
+                    ) { onFadeInOutChange(it) }
                     SettingsItem(
                         title = "首页主题色",
                         subtitle = "手动选择首页主题色"
