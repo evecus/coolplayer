@@ -278,3 +278,36 @@ DSP/HAL 完成，app 侧 CPU 趋近 0——**预期原声 320k MP3 后台从 20%
 **编译验证**：全项目 kotlinc 复验 **0 error，469 个 class**（本轮新增
 3 个：`EqAwareMediaCodecAudioRenderer`、`EqAwareRenderersFactory`、
 匿名内部类）。
+
+### 7.9 offload 诊断埋点（真机复测 CPU 未降时的定位手段）
+
+用户复测 offload 版本后 CPU 仍为 20%，说明 offload 未真正生效。已对
+media3 1.4.1 offload 决策链做逐环字节码实证，确认代码侧无断点，剩余
+可能只能在真机上区分。新增两条日志（tag 统一为 `CoolPlayerOffload`）：
+
+1. `MusicPlayer` 构建期：`TrackSelector offload preference applied:
+   offloadModeInEffect=1 setParametersSupported=true` —— 确认偏好写入。
+2. `EqAwareMediaCodecAudioRenderer.shouldUseBypass`：每次 decoder init
+   评估时打印完整决策输入（mime/rate/ch、eqActive、offloadModePreferred、
+   AudioOffloadSupport 三项、SDK_INT）与最终 bypass 结果。
+
+**实证过的完整决策链**（1.4.1 字节码）：
+- `DefaultTrackSelector.maybeConfigureRendererForOffload`：偏好
+  ENABLED + 选中格式 `rendererSupportsOffload`（内部
+  `AudioManager.isOffloadedPlaybackSupported`）→ 才把
+  `RendererConfiguration.offloadModePreferred` 置为 2；
+- `MediaCodecAudioRenderer.shouldUseBypass`：`offloadModePreferred != 0`
+  且 `AudioOffloadSupport.isFormatSupported` 才返回 true；
+- `DefaultAudioSink`：SDK ≥ 29、sampleRate 已知、channelCount 可映射、
+  `isOffloadedPlaybackSupported(format, attributes)` 为 true。
+
+**日志对账表**：
+
+| offloadModePreferred | formatSupported | bypass | 结论 |
+|---|---|---|---|
+| 0 | — | false | TrackSelector 未下发（偏好未生效 or 设备不支持该格式 offload） |
+| 2 | false | false | 设备侧 `isOffloadedPlaybackSupported` 返回 false（ROM/HAL 限制） |
+| 2 | true | true | offload 已启用；剩余 CPU 在音频链路之外，需另行 profiling |
+| 2 | true | false | EQ 短路生效中（原声场景不应出现） |
+
+编译验证：**0 error，470 个 class**。

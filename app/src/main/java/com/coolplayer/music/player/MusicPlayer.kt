@@ -3,6 +3,7 @@ package com.coolplayer.music.player
 import android.content.Context
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.util.Log
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -18,6 +19,7 @@ import com.coolplayer.music.data.MusicRepository
 import com.coolplayer.music.data.SongEntry
 import com.coolplayer.music.data.StorageService
 import com.coolplayer.music.data.toSongEntry
+import com.coolplayer.music.player.audiofx.EqAwareMediaCodecAudioRenderer
 import com.coolplayer.music.player.audiofx.EqAwareRenderersFactory
 import com.coolplayer.music.player.audiofx.ParametricEqAudioProcessor
 import kotlinx.coroutines.CoroutineScope
@@ -84,6 +86,14 @@ class MusicPlayer(
                             .build()
                     )
                     .build()
+            )
+            // 诊断埋点：确认 offload 偏好真实写入了 TrackSelector（真机复测
+            // CPU 未降时，先看这条日志的 offloadModeInEffect 是否为 1）。
+            Log.i(
+                EqAwareMediaCodecAudioRenderer.TAG,
+                "TrackSelector offload preference applied: " +
+                    "offloadModeInEffect=${parameters.audioOffloadPreferences.audioOffloadMode} " +
+                    "setParametersSupported=$isSetParametersSupported"
             )
         }
         ExoPlayer.Builder(context, renderersFactory)
