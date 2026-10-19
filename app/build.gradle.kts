@@ -69,8 +69,10 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.8.1")
 
     // Media3 ExoPlayer + MediaSession
+    // 注：原 media3-exoplayer-hls 依赖已移除——本项目只播放本地音频文件，
+    // 没有任何 HLS(m3u8) 网络流播放入口，该模块是纯粹的死重量（约 1.5 万方法数，
+    // 影响 R8 后体积与启动时的类验证/编译开销）。
     implementation("androidx.media3:media3-exoplayer:1.4.1")
-    implementation("androidx.media3:media3-exoplayer-hls:1.4.1")
     implementation("androidx.media3:media3-ui:1.4.1")
     implementation("androidx.media3:media3-common:1.4.1")
     implementation("androidx.media3:media3-session:1.4.1")
