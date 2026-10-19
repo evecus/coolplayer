@@ -9,16 +9,19 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.session.MediaSession
 import androidx.media3.exoplayer.ExoPlayer
+import com.coolplayer.music.data.AudioMetadata
 import com.coolplayer.music.data.AudioMetadataReader
 import com.coolplayer.music.data.MusicRepository
 import com.coolplayer.music.data.SongEntry
 import com.coolplayer.music.data.StorageService
+import com.coolplayer.music.data.toSongEntry
 import com.coolplayer.music.player.audiofx.EqAwareRenderersFactory
 import com.coolplayer.music.player.audiofx.ParametricEqAudioProcessor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -111,6 +114,14 @@ class MusicPlayer(
         exoPlayer.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 _isPlaying.value = isPlaying
+                // 淡入淡出的自愈：MediaSession 是直接包在 ExoPlayer 上的，
+                // 通知栏 / 锁屏 / 蓝牙耳机的播放命令会绕过本类的 play()，
+                // 直接从淡出后的 0 音量开始播，出现"在放但没声音"。
+                // 这里检测到"正在播放、音量未满、且没有正在进行的淡入淡出"
+                // 时补一次快速淡入。
+                if (isPlaying && fadeJob?.isActive != true && exoPlayer.volume < 0.999f) {
+                    fadeInFromCurrent()
+                }
             }
 
             override fun onPlaybackStateChanged(state: Int) {
@@ -147,7 +158,11 @@ class MusicPlayer(
                     val rawDur = exoPlayer.duration
                     val dur = if (rawDur == C.TIME_UNSET || rawDur < 0) 0L else rawDur
                     if (dur != _duration.value && dur > 0) _duration.value = dur
-                    kotlinx.coroutines.delay(200L)
+                    // 200ms → 500ms：进度条与歌词高亮都不需要 5Hz 的刷新率，
+                    // 人眼对进度条 0.5s 的分辨率完全无感，但 Compose 侧的
+                    // 重组/重绘频率直接下降 60%（播放页整页随 position 重组，
+                    // 是播放时 UI 线程 CPU 的主要来源）。
+                    kotlinx.coroutines.delay(500L)
                 } else {
                     // 暂停中：挂起等待恢复播放，不轮询、不占 CPU。
                     _isPlaying.first { playing -> playing }
@@ -197,32 +212,61 @@ class MusicPlayer(
 
     private fun loadMetadata(song: SongEntry) {
         ioScope.launch {
-            val meta = AudioMetadataReader.readFile(song.path)
-            if (_lyrics.value.isEmpty() && !meta.lyrics.isNullOrEmpty()) {
-                _lyrics.value = meta.lyrics
-                song.lyrics = meta.lyrics
+            // ── 元数据来源策略（参考 Salt Player 的"读一次、到处用"思路）──
+            //
+            // song.metadataLoaded == true 表示该曲目的标题/歌手/专辑/歌词已经在
+            // 扫描阶段解析过并持久化进了 Room（见 LibraryViewModel.rescan），
+            // 此时播放页直接复用数据库里的字段，不再碰磁盘。
+            // JAudioTagger 是纯 Java 实现，全量解析单个文件（音频头 + 标签 +
+            // 提取内嵌封面）在旗舰机上也常需数十毫秒 CPU；"每次切歌都重新解析
+            // 一遍"是播放场景下不必要的持续性开销。
+            //
+            // 封面是唯一例外：列表用的是数据库里压缩过的小图缩略图，播放页要
+            // 展示原图画质，因此单独走 CoverCache + 按需只读封面。
+            val meta: AudioMetadata? = if (song.metadataLoaded) null else AudioMetadataReader.readFile(song.path)
+
+            if (meta != null) {
+                if (_lyrics.value.isEmpty() && !meta.lyrics.isNullOrEmpty()) {
+                    _lyrics.value = meta.lyrics
+                    song.lyrics = meta.lyrics
+                }
+                if (_title.value.isEmpty() && !meta.title.isNullOrEmpty()) {
+                    _title.value = meta.title
+                    song.title = meta.title
+                }
+                if (_artist.value.isEmpty() && !meta.artist.isNullOrEmpty()) {
+                    _artist.value = meta.artist
+                    song.artist = meta.artist
+                }
+                if (song.album.isEmpty() && !meta.album.isNullOrEmpty()) {
+                    song.album = meta.album
+                    _album.value = meta.album
+                }
+                song.metadataLoaded = true
+            } else if (song.metadataLoaded) {
+                // 复用数据库元数据：仅在 StateFlow 还是空的时候补一次，
+                // 避免把同一份字符串反复写进 MutableStateFlow 触发无谓重组。
+                if (_lyrics.value.isEmpty() && song.lyrics.isNotEmpty()) _lyrics.value = song.lyrics
+                if (_title.value.isEmpty() && song.title.isNotEmpty()) _title.value = song.title
+                if (_artist.value.isEmpty() && song.artist.isNotEmpty()) _artist.value = song.artist
+                if (_album.value.isEmpty() && song.album.isNotEmpty()) _album.value = song.album
             }
-            if (_title.value.isEmpty() && !meta.title.isNullOrEmpty()) {
-                _title.value = meta.title
-                song.title = meta.title
-            }
-            if (_artist.value.isEmpty() && !meta.artist.isNullOrEmpty()) {
-                _artist.value = meta.artist
-                song.artist = meta.artist
-            }
-            if (song.album.isEmpty() && !meta.album.isNullOrEmpty()) {
-                song.album = meta.album
-                _album.value = meta.album
-            }
-            if (meta.coverBytes != null) {
+
+            // 封面：优先命中内存缓存（单曲循环/恢复播放零读盘），未命中才读盘，
+            // 读到的结果回写缓存供下次使用。
+            val cover = CoverCache.get(song.path)
+                ?: (meta?.coverBytes ?: AudioMetadataReader.readCoverOnly(song.path))?.also {
+                    CoverCache.put(song.path, it)
+                }
+            if (cover != null) {
                 // 注意：这里不再写 song.coverBytes——该字段现在语义上专指
                 // SongCoverEntity 数据库表里的小图缩略图（见 SongEntry 上的
                 // 注释），播放页展示走独立的 _coverBytes（下方），继续把这里
                 // 读到的原始大图写进 song.coverBytes 只会造成语义混淆，
                 // 且对展示没有任何实际作用（下一次数据库 Flow emit 就会用
                 // 一个全新对象替换掉它）。
-                _coverBytes.value = meta.coverBytes
-                updateMediaSessionArtwork(meta.coverBytes)
+                _coverBytes.value = cover
+                updateMediaSessionArtwork(cover)
             }
             updateMediaMetadataToSession()
         }
@@ -248,15 +292,84 @@ class MusicPlayer(
     }
 
     fun togglePlay() {
-        if (exoPlayer.isPlaying) exoPlayer.pause() else exoPlayer.play()
+        if (exoPlayer.isPlaying) fadeOutAndPause() else fadeInAndPlay()
     }
 
     fun pause() {
+        fadeJob?.cancel()
         exoPlayer.pause()
+        exoPlayer.volume = 1f
     }
 
     fun play() {
+        fadeJob?.cancel()
         exoPlayer.play()
+        exoPlayer.volume = 1f
+    }
+
+    // ── 淡入淡出（移植自 Salt Player 的 fade_in_or_out_during_play_or_pause）──
+    //
+    // Salt 的实现是在 BASS 输出通道上做音量斜坡（BASS_ChannelSetAttribute
+    // BASS_ATTRIB_VOL 逐级逼近）；ExoPlayer 侧等价的扩展点就是 AudioSink 的
+    // volume（DefaultAudioSink 在音频处理链之后、写 AudioTrack 之前应用音量，
+    // 因此淡入淡出不会与 EQ 处理相互干扰）。
+    //
+    // 默认 300ms / 15 步（约 20ms 一步，与一次音频缓冲时长相当，听起来是平滑
+    // 直线而不会有可闻的台阶感）。
+
+    // 默认 300ms / 15 步（约 20ms 一步，与一次音频缓冲时长相当，听起来是平滑
+    // 直线而不会有可闻的台阶感）。
+    private val FADE_STEPS = 15
+    private val FADE_DURATION_MS = 300L
+
+    /** 淡入淡出总开关，对应 Salt 的 fade_in_or_out_during_play_or_pause（默认开）。 */
+    private val fadeEnabled: Boolean
+        get() = StorageService.getBoolean(StorageService.kFadeInOut, true)
+
+    @Volatile private var fadeJob: Job? = null
+
+    /** 淡出到静音再暂停；开关关闭时立即暂停。 */
+    private fun fadeOutAndPause() {
+        if (!fadeEnabled) {
+            exoPlayer.pause()
+            return
+        }
+        fadeJob?.cancel()
+        fadeJob = scope.launch {
+            val from = exoPlayer.volume
+            for (i in 1..FADE_STEPS) {
+                exoPlayer.volume = from * (1f - i / FADE_STEPS.toFloat())
+                delay(FADE_DURATION_MS / FADE_STEPS)
+            }
+            exoPlayer.volume = 0f
+            exoPlayer.pause()
+        }
+    }
+
+    /** 从静音开始播放并淡入到全量；开关关闭时直接满量播放。 */
+    private fun fadeInAndPlay() {
+        if (!fadeEnabled) {
+            exoPlayer.play()
+            exoPlayer.volume = 1f
+            return
+        }
+        fadeJob?.cancel()
+        exoPlayer.volume = 0f
+        exoPlayer.play()
+        fadeInFromCurrent()
+    }
+
+    /** 从当前音量快速补一个淡入到全量。 */
+    private fun fadeInFromCurrent() {
+        fadeJob?.cancel()
+        fadeJob = scope.launch {
+            val from = exoPlayer.volume
+            for (i in 1..FADE_STEPS) {
+                exoPlayer.volume = from + (1f - from) * (i / FADE_STEPS.toFloat())
+                delay(FADE_DURATION_MS / FADE_STEPS)
+            }
+            exoPlayer.volume = 1f
+        }
     }
 
     fun next() {
@@ -364,7 +477,9 @@ class MusicPlayer(
 
     fun release() {
         posPollJob?.cancel()
+        fadeJob?.cancel()
         sleepTimer.cancel()
+        CoverCache.clear()
         runCatching {
             if (::mediaSession.isInitialized) mediaSession.release()
         }
@@ -379,18 +494,20 @@ class MusicPlayer(
         val lastPos = StorageService.getLong(StorageService.kLastPosition, 0L)
         scope.launch {
             val songs = withContext(ioScope.coroutineContext) {
+                // 元数据全部来自 Room：一次 IN 查询拿回整个列表的
+                // 标题/歌手/专辑/歌词/播放次数。原实现是对列表里每个文件
+                // 逐个调用 JAudioTagger 全量解析，Service 每重建一次
+                // （切歌后被杀、蓝牙断连重连等）就要串行读 N 个文件，
+                // 是启动期 CPU/IO 峰值的主要来源。
+                //
+                // 数据库里查不到的路径（扫描数据被清理、文件是新增的）退化为
+                // 仅含 File 基本信息的条目，metadataLoaded=false，
+                // 后续 loadMetadata 会按需补一次读盘，行为自愈。
+                val entities = repository.songLibraryDao.getByPaths(paths).associateBy { it.path }
                 paths.map { p ->
-                    val f = File(p)
-                    SongEntry(p, f.name, f.parent ?: "/", f.length(), f.lastModified()).also { song ->
-                        if (!song.metadataLoaded) {
-                            val meta = AudioMetadataReader.readFile(p)
-                            song.title = meta.title?.takeIf { it.isNotEmpty() }
-                                ?: f.name.substringBeforeLast('.', f.name)
-                            song.artist = meta.artist ?: ""
-                            song.album = meta.album ?: ""
-                            song.lyrics = meta.lyrics ?: ""
-                            song.metadataLoaded = true
-                        }
+                    entities[p]?.toSongEntry() ?: run {
+                        val f = File(p)
+                        SongEntry(p, f.name, f.parent ?: "/", f.length(), f.lastModified())
                     }
                 }
             }
