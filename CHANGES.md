@@ -236,3 +236,45 @@ API 34 android.jar + 项目真实依赖栈），0 error。
 - **保持 ExoPlayer + DSP native 化（本轮方案）**：零授权成本，已实施
   验证，CPU 主体收益与换引擎重叠。若真机复测后解码仍是大头，再单独评估
   引入 `media3-decoder-flac` 等 C 层解码器扩展。
+
+### 7.8 启用 Audio Offload — `player/MusicPlayer.kt` + `player/audiofx/EqAwareMediaCodecAudioRenderer.kt`（新）+ `player/audiofx/EqAwareRenderersFactory.kt`
+
+**根因**（media3 1.4.1 字节码实证）：`TrackSelectionParameters.AudioOffloadPreferences`
+默认 `AUDIO_OFFLOAD_MODE_DISABLED(0)`，`MediaCodecRenderer.shouldUseBypass`
+恒 false，本地 320k MP3 一直走"app 侧解码 + PCM 搬运"路径——这是原声播放
+CPU 20% 而 Salt 10% 的剩余差距来源。
+
+**改动**：
+1. `MusicPlayer.kt`：`DefaultTrackSelector` 显式开启
+   `AUDIO_OFFLOAD_MODE_ENABLED`；ExoPlayer 构建时设置
+   `AudioAttributes(USAGE_MEDIA, AUDIO_CONTENT_TYPE_MUSIC)`。
+   注意 Kotlin 属性赋值 `parameters = ...` 会因 getter 协变返回类型
+   （`DefaultTrackSelector$Parameters`）与 setter 形参
+   （`TrackSelectionParameters`）不匹配而报 assignment type mismatch，
+   必须显式调 `setParameters(...)`。
+2. `EqAwareRenderersFactory.kt`：新增 `buildAudioRenderers` override
+   （签名已对 1.4.1 aar 核实：非空 `Handler` / 非空
+   `AudioRendererEventListener` / `ArrayList<Renderer>`），把默认渲染器
+   替换为 `EqAwareMediaCodecAudioRenderer`。本项目无 media3 decoder
+   扩展依赖，无需复制官方扩展加载逻辑，与默认 `EXTENSION_RENDERER_MODE_OFF`
+   行为一致。
+3. `EqAwareMediaCodecAudioRenderer.kt`（新）：override `shouldUseBypass`，
+   `eqActiveRequested` 为 true（EQ 生效中）时返回 false 禁用 offload，
+   保证音频流经处理器链；原声时交还父类正常决策。依据：offload 与
+   AudioProcessor 互斥（`DefaultAudioSink.configure` 对压缩格式输入使用
+   空 AudioProcessingPipeline，bypass 一开 EQ 静默失效）。
+4. `MusicPlayer.observeEqPathSwitch()`（新）：监听 `currentPreset`，
+   "原声 ↔ 有 EQ"翻转且正在播放时用当前 MediaItem 重载一次播放
+   （setMediaItem + prepare + seekTo 原位 + play），强制 renderer 在
+   `maybeInitCodecOrBypass` 边界重新评估 bypass。本地文件重载约百毫秒，
+   只发生在用户手动开关 EQ 瞬间；暂停中翻转则下次播放自然生效。
+
+**生效条件**：API 29+ 且 `AudioManager.isOffloadedPlaybackSupported` 为 true
+（不满足时静默回落原路径，无行为变化）。开启后解码 + 输出全部在 audio
+DSP/HAL 完成，app 侧 CPU 趋近 0——**预期原声 320k MP3 后台从 20% 降至
+5% 以内**；EQ 开启期间仍走 PCM + native biquad 路径（20% 水平），
+与原声策略一致。
+
+**编译验证**：全项目 kotlinc 复验 **0 error，469 个 class**（本轮新增
+3 个：`EqAwareMediaCodecAudioRenderer`、`EqAwareRenderersFactory`、
+匿名内部类）。

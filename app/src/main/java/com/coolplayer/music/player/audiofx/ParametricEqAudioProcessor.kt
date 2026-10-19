@@ -55,6 +55,21 @@ class ParametricEqAudioProcessor : BaseAudioProcessor() {
     private var preampLinearGain = 1.0
     private var bandCount = 0
 
+    /**
+     * UI 侧 [setPreset] 的即时快照：该 preset 是否包含有效频段/增益
+     * （与 [rebuildFilters] 的剔除阈值一致，但**不等 queueInput**，
+     * setPreset 当刻即更新）。
+     *
+     * 两个"是否生效"状态的分工：
+     * - [isActive]：处理器对 media3 pipeline 的 bypass 声明（读**已生效**的
+     *   activePreset/bandCount，queueInput 边界才更新）；
+     * - [eqActiveRequested]：offload/bypass 渲染器决策用（读**用户意图**，
+     *   供 EqAwareMediaCodecAudioRenderer.shouldUseBypass 在 decoder init
+     *   边界实时判断，避免 offload 旁路处理器链导致 EQ 静默失效）。
+     */
+    @Volatile var eqActiveRequested: Boolean = false
+        private set
+
     // 打平后的滤波器系数（所有声道共用同一组系数，因为左右声道用相同 EQ 曲线）。
     // 扁平布局：每段 5 个 double，依次 b0,b1,b2,a1,a2 —— native 与 Kotlin 共用。
     private var coeffs = DoubleArray(0)
@@ -71,7 +86,13 @@ class ParametricEqAudioProcessor : BaseAudioProcessor() {
     fun setPreset(preset: EqPreset) {
         _currentPreset.value = preset
         pendingPreset = preset
+        eqActiveRequested = isPresetEffective(preset)
     }
+
+    /** preset 是否含有效频段/增益（与 rebuildFilters 的剔除阈值一致）。 */
+    private fun isPresetEffective(preset: EqPreset): Boolean =
+        preset.bands.any { kotlin.math.abs(it.gainDb) >= BAND_DROP_THRESHOLD_DB } ||
+            preset.preampDb != 0f
 
     /**
      * 原声（无有效频段且 preamp 为 0）时返回 false，让 media3 的

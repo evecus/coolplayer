@@ -3,12 +3,15 @@ package com.coolplayer.music.player
 import android.content.Context
 import android.graphics.BitmapFactory
 import android.net.Uri
+import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
+import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.session.MediaSession
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import com.coolplayer.music.data.AudioMetadata
 import com.coolplayer.music.data.AudioMetadataReader
 import com.coolplayer.music.data.MusicRepository
@@ -52,9 +55,47 @@ class MusicPlayer(
     // setAudioSinkFactory 这个公开方法；真正的扩展点是 protected 方法
     // buildAudioSink(Context, boolean, boolean): AudioSink，需要继承后重写。
     // 见下方 EqAwareRenderersFactory。
+    //
+    // Audio Offload（1.4.1 字节码实证的完整链路）：
+    // - TrackSelectionParameters.audioOffloadPreferences 默认
+    //   AUDIO_OFFLOAD_MODE_DISABLED(0) → MediaCodecAudioRenderer.shouldUseBypass
+    //   恒 false → 永远走"app 侧解码 + PCM 搬运"路径。这是本地原声播放后台
+    //   CPU 偏高的根因之一（320k MP3 实测 20% vs Salt 10%）。
+    // - 显式开启 AUDIO_OFFLOAD_MODE_ENABLED 后，支持 offload 的设备/格式
+    //   （API>=29 + AudioManager.isOffloadedPlaybackSupported）下解码+输出
+    //   全部在 audio DSP/HAL 完成，app 侧 CPU 趋近 0。
+    // - offload 与 AudioProcessor 互斥（DefaultAudioSink.configure 对压缩格式
+    //   输入使用空 pipeline）：EQ 生效时由 EqAwareMediaCodecAudioRenderer
+    //   在 shouldUseBypass 里强制关闭 bypass，原声时自动回到 offload。
     private val exoPlayer: ExoPlayer = run {
         val renderersFactory = EqAwareRenderersFactory(context, eqProcessor)
-        ExoPlayer.Builder(context, renderersFactory).build()
+        val trackSelector = DefaultTrackSelector(context).apply {
+            // 注意：不能用 Kotlin 属性赋值 `parameters = ...`——getter 的协变
+            // 返回类型是 DefaultTrackSelector$Parameters，setter 接受
+            // TrackSelectionParameters，属性语法会报 assignment type mismatch。
+            // 显式调用 setParameters(TrackSelectionParameters) 即可。
+            setParameters(
+                buildUponParameters()
+                    .setAudioOffloadPreferences(
+                        TrackSelectionParameters.AudioOffloadPreferences.Builder()
+                            .setAudioOffloadMode(
+                                TrackSelectionParameters.AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_ENABLED
+                            )
+                            .build()
+                    )
+                    .build()
+            )
+        }
+        ExoPlayer.Builder(context, renderersFactory)
+            .setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(C.USAGE_MEDIA)
+                    .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                    .build(),
+                /* handleAudioFocus = */ true
+            )
+            .setTrackSelector(trackSelector)
+            .build()
     }
     val player: ExoPlayer get() = exoPlayer
 
@@ -142,7 +183,39 @@ class MusicPlayer(
                 }
             }
         })
+        observeEqPathSwitch()
         startPositionPolling()
+    }
+
+    /**
+     * EQ 开关状态翻转时刷新播放路径（offload ↔ PCM+EQ）。
+     *
+     * 背景（media3 1.4.1 实证）：offload/bypass 决策发生在
+     * `MediaCodecRenderer.maybeInitCodecOrBypass`（prepare / 切歌 / 格式变化 /
+     * decoder 重新 init 边界），运行中改 EQ 状态**不会**自动重估；而 offload
+     * 与 AudioProcessor 互斥——开着 EQ 却仍走 offload 会导致 EQ 静默失效。
+     *
+     * 这里在"原声 ↔ 有 EQ"翻转且正在播放时，用当前 MediaItem 重载一次播放
+     * （setMediaItem + prepare + seekTo 原位），强制 renderer 重新 init、
+     * 重新评估 shouldUseBypass。本地文件重载开销约百毫秒，且只发生在用户
+     * 手动开关 EQ 的瞬间，可接受；暂停中翻转则什么都不做，下次播放自然生效。
+     */
+    private fun observeEqPathSwitch() {
+        scope.launch {
+            var lastActive = eqProcessor.eqActiveRequested
+            eqProcessor.currentPreset.collect { _ ->
+                val nowActive = eqProcessor.eqActiveRequested
+                if (nowActive == lastActive) return@collect
+                lastActive = nowActive
+                if (!exoPlayer.isPlaying) return@collect
+                val item = exoPlayer.currentMediaItem ?: return@collect
+                val pos = exoPlayer.currentPosition.coerceAtLeast(0L)
+                exoPlayer.setMediaItem(item)
+                exoPlayer.prepare()
+                exoPlayer.seekTo(pos)
+                exoPlayer.play()
+            }
+        }
     }
 
     private fun startPositionPolling() {
