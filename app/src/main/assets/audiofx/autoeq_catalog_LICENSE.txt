@@ -1,0 +1,7 @@
+AutoEQ Catalog License
+
+This catalog is derived from the AutoEQ project (https://github.com/jaakkopasanen/AutoEq).
+
+Please refer to the original AutoEQ repository for the full license terms of the measurement data and generated equalizer configurations.
+
+The catalog TSV format and packaging in this project are provided for use with CoolPlayer.
