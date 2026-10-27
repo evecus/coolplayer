@@ -14,6 +14,7 @@ import com.coolplayer.music.data.ScanFilters
 import com.coolplayer.music.data.ScanFiltersStore
 import com.coolplayer.music.data.SongCoverDao
 import com.coolplayer.music.data.SongCoverEntity
+import com.coolplayer.music.data.PinyinUtil
 import com.coolplayer.music.data.SongEntry
 import com.coolplayer.music.data.SongLibraryDao
 import com.coolplayer.music.data.StorageService
@@ -377,9 +378,29 @@ class LibraryViewModel(app: Application) : AndroidViewModel(app) {
             // SongLibraryEntity（song_library 表）本身不含封面数据，封面被拆到独立的
             // song_cover 表（见 SongCoverEntity 上的注释）。这里必须再查一次 song_cover
             // 并按 path 关联回去，否则歌曲列表页会永远显示占位音符图标而不是真实封面。
-            val songs = entities.map { it.toSongEntry() }
+            var songs = entities.map { it.toSongEntry() }
             val coverByPath = songCoverDao.getAllAsMap()
             songs.forEach { song -> song.coverBytes = coverByPath[song.path] }
+
+            // 名称类排序：用拼音键重排，使「爱」与 A 开头英文排在一起（SQL COLLATE 做不到）
+            if (field in setOf(
+                    SongSortField.TITLE,
+                    SongSortField.FILE_NAME,
+                    SongSortField.ALBUM,
+                    SongSortField.ARTIST
+                )
+            ) {
+                val keyOf: (SongEntry) -> String = when (field) {
+                    SongSortField.FILE_NAME -> { s -> PinyinUtil.toSortKey(s.name) }
+                    SongSortField.ALBUM -> { s -> PinyinUtil.toSortKey(s.album.ifBlank { s.title }) }
+                    SongSortField.ARTIST -> { s ->
+                        PinyinUtil.toSortKey(s.artist.ifBlank { s.title }) + "\u0000" + PinyinUtil.toSortKey(s.title)
+                    }
+                    else -> { s -> PinyinUtil.toSortKey(s.title) }
+                }
+                songs = if (ascending) songs.sortedBy(keyOf) else songs.sortedByDescending(keyOf)
+            }
+
             withContext(Dispatchers.Main) { sortedSongsFlow.value = songs }
         }
     }
@@ -447,8 +468,8 @@ class LibraryViewModel(app: Application) : AndroidViewModel(app) {
             it.displayName.lowercase().contains(kw)
         }
         return when (currentSortGroup.value) {
-            MusicGroupSort.NAME_ASC -> filtered.sortedBy { it.displayName.lowercase() }
-            MusicGroupSort.NAME_DESC -> filtered.sortedByDescending { it.displayName.lowercase() }
+            MusicGroupSort.NAME_ASC -> filtered.sortedBy { PinyinUtil.toSortKey(it.displayName) }
+            MusicGroupSort.NAME_DESC -> filtered.sortedByDescending { PinyinUtil.toSortKey(it.displayName) }
             MusicGroupSort.TIME_ASC -> filtered.sortedBy { it.songs.maxOf { s -> s.modified } }
             MusicGroupSort.TIME_DESC -> filtered.sortedByDescending { it.songs.maxOf { s -> s.modified } }
             else -> filtered

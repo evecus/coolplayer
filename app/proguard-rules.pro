@@ -42,3 +42,8 @@
 # ── MediaSession / 通知栏控制回调（系统通过反射/隐式 Intent 调起） ─────────
 -keep class com.coolplayer.music.service.** { *; }
 -keep class com.coolplayer.music.player.** { *; }
+
+# ── TinyPinyin ──────────────────────────────────────────────────────────
+-keep class com.github.promeg.pinyinhelper.** { *; }
+-dontwarn com.github.promeg.pinyinhelper.**
+

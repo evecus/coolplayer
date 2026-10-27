@@ -83,12 +83,9 @@ fun AlphabetIndexBar(
     }
 }
 
-/** 计算字符串首字母索引 key（用于分组滚动定位）。 */
-fun firstIndexKeyOf(text: String): String {
-    val c = text.trim().firstOrNull() ?: return "#"
-    return when {
-        c.isDigit() -> "0"
-        c.uppercaseChar() in 'A'..'Z' -> c.uppercaseChar().toString()
-        else -> "#"
-    }
-}
+/**
+ * 计算字符串首字母索引 key（用于分组滚动定位）。
+ * 汉字按拼音首字母归入 A–Z（如「爱」→ A，「城」→ C）。
+ */
+fun firstIndexKeyOf(text: String): String =
+    com.coolplayer.music.data.PinyinUtil.firstLetterKey(text)

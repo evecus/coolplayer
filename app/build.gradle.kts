@@ -122,4 +122,7 @@ dependencies {
     // 封面读取。官方 net.jthink 版依赖 javax.imageio / java.awt 等桌面 JVM 专属类，在
     // Android 上无法运行，故使用这个移除了这些依赖、额外加强 Opus/MP4-DASH 支持的 fork。
     implementation("com.github.Adonai:jaudiotagger:2.3.14")
+
+    // TinyPinyin：中文按拼音首字母排序 / 右侧字母索引（爱→A，城→C）
+    implementation("com.github.promeg:tinypinyin:2.0.3")
 }
