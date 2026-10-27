@@ -69,7 +69,8 @@ data class LyricsSettings(
 ) {
     companion object {
         const val DEFAULT_FONT_SIZE = 17f
-        const val DEFAULT_LINE_SPACING = 50f
+        /** 默认行距偏紧，接近常见播放器歌词密度（原 50 过疏） */
+        const val DEFAULT_LINE_SPACING = 22f
         val DEFAULT_ALIGNMENT = LyricsAlignment.CENTER
         val DEFAULT_FONT_WEIGHT = LyricsFontWeight.NORMAL
 
@@ -81,7 +82,7 @@ data class LyricsSettings(
 object LyricsSizeRange {
     const val MIN_FONT_SIZE = 12f
     const val MAX_FONT_SIZE = 30f
-    const val MIN_LINE_SPACING = 16f
+    const val MIN_LINE_SPACING = 8f
     const val MAX_LINE_SPACING = 120f
 }
 
@@ -253,7 +254,11 @@ fun LrcView(
     emptyText: String = "暂无歌词",
     highlightColor: Color,
     normalColor: Color,
-    lineSpacing: Float = 50f,
+    lineSpacing: Float = LyricsSettings.DEFAULT_LINE_SPACING,
+    /** 列表顶部内边距，避免歌词贴顶栏歌名 */
+    contentPaddingTop: androidx.compose.ui.unit.Dp = 24.dp,
+    /** 列表底部内边距，避免歌词贴进度条 */
+    contentPaddingBottom: androidx.compose.ui.unit.Dp = 32.dp,
     modifier: Modifier = Modifier,
     state: LrcViewState? = null
 ) {
@@ -270,6 +275,12 @@ fun LrcView(
         Alignment.CenterHorizontally else Alignment.Start
     val normalWeight = cfg.fontWeight.weight
     val highlightWeight = cfg.fontWeight.bumped()
+    val listContentPadding = PaddingValues(
+        start = 24.dp,
+        end = 24.dp,
+        top = contentPaddingTop,
+        bottom = contentPaddingBottom
+    )
 
     if (lrcState.isPlain) {
         if (lrcState.plainLines.isEmpty()) {
@@ -281,7 +292,7 @@ fun LrcView(
         LazyColumn(
             modifier = modifier.fillMaxSize(),
             horizontalAlignment = columnAlign,
-            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 16.dp),
+            contentPadding = listContentPadding,
             verticalArrangement = Arrangement.spacedBy(spacingDp.dp)
         ) {
             itemsIndexed(lrcState.plainLines, key = { i, _ -> i }) { _, line ->
@@ -310,12 +321,15 @@ fun LrcView(
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val viewportHeightPx = with(density) { maxHeight.toPx() }
-        // 高亮行切换时平滑滚动到视口垂直居中；setText 后 lines.size 变化也重置一次。
-        LaunchedEffect(currentIdx, lrcState.lines.size) {
+        val topPadPx = with(density) { contentPaddingTop.toPx() }
+        val bottomPadPx = with(density) { contentPaddingBottom.toPx() }
+        // 高亮行滚到可视区垂直中部（扣除上下内边距后的有效区域）
+        LaunchedEffect(currentIdx, lrcState.lines.size, viewportHeightPx, topPadPx, bottomPadPx) {
             if (currentIdx in lrcState.lines.indices && viewportHeightPx > 0f) {
+                val usable = (viewportHeightPx - topPadPx - bottomPadPx).coerceAtLeast(0f)
                 listState.animateScrollToItem(
                     index = currentIdx,
-                    scrollOffset = -(viewportHeightPx / 2f).toInt()
+                    scrollOffset = -((usable / 2f) + topPadPx).toInt()
                 )
             }
         }
@@ -324,6 +338,7 @@ fun LrcView(
             state = listState,
             modifier = Modifier.fillMaxSize(),
             horizontalAlignment = columnAlign,
+            contentPadding = listContentPadding,
             verticalArrangement = Arrangement.spacedBy(spacingDp.dp)
         ) {
             itemsIndexed(lrcState.lines, key = { i, _ -> i }) { i, line ->
@@ -334,9 +349,7 @@ fun LrcView(
                     fontSize = if (highlighted) highlightSize else normalSize,
                     fontWeight = if (highlighted) highlightWeight else normalWeight,
                     textAlign = textAlign,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp)
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
         }

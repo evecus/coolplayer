@@ -193,12 +193,12 @@ fun PlayerScreen(
                     .fillMaxSize()
                     .windowInsetsPadding(WindowInsets.statusBars)
             ) {
-                // 顶部栏
+                // 顶部栏：返回 | 歌名+歌手 | 收藏/音效/睡眠
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 8.dp)
+                        .padding(horizontal = 4.dp, vertical = 6.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.ArrowBack,
@@ -209,7 +209,30 @@ fun PlayerScreen(
                             .clickable(onClick = onBack)
                             .padding(8.dp)
                     )
-                    Spacer(Modifier.weight(1f))
+                    // 歌名 + 歌手（参考常见播放页顶部信息）
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 4.dp)
+                    ) {
+                        Text(
+                            text = title.ifBlank { "未知歌曲" },
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = scheme.onBackground,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (artist.isNotBlank()) {
+                            Text(
+                                text = artist,
+                                fontSize = 12.sp,
+                                color = scheme.onBackground.copy(alpha = 0.65f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
                     // 收藏
                     Icon(
                         imageVector = if (isFav) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
@@ -284,14 +307,18 @@ fun PlayerScreen(
                                 modifier = Modifier.weight(1.1f).fillMaxSize(),
                                 contentAlignment = Alignment.Center
                             ) {
-                                CoverDisplay(
+                                CoverWithMeta(
                                     coverBytes = coverBytes,
                                     size = coverSize,
+                                    title = title,
+                                    artist = artist,
                                     modifier = Modifier.padding(16.dp)
                                 )
                             }
                             LyricsPane(
                                 lyrics = lyrics,
+                                title = title,
+                                artist = artist,
                                 highlightColor = scheme.primary,
                                 normalColor = scheme.onBackground,
                                 state = lrcState,
@@ -309,13 +336,17 @@ fun PlayerScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 if (page == 0) {
-                                    CoverDisplay(
+                                    CoverWithMeta(
                                         coverBytes = coverBytes,
-                                        size = coverSize
+                                        size = coverSize,
+                                        title = title,
+                                        artist = artist
                                     )
                                 } else {
                                     LyricsPane(
                                         lyrics = lyrics,
+                                        title = title,
+                                        artist = artist,
                                         highlightColor = scheme.primary,
                                         normalColor = scheme.onBackground,
                                         state = lrcState,
@@ -345,7 +376,7 @@ fun PlayerScreen(
                     onCycleMode = { player.cyclePlayMode() },
                     onQueue = { showQueue = true }
                 )
-                Spacer(Modifier.size(8.dp))
+                Spacer(Modifier.size(16.dp))
             }
 
             // 队列面板
@@ -469,6 +500,43 @@ private fun CoverDisplay(
     NoCoverPlaceholder(size = size, scheme = scheme, modifier = modifier)
 }
 
+/** 封面 + 下方歌名/歌手（参考常见播放页布局）。 */
+@Composable
+private fun CoverWithMeta(
+    coverBytes: ByteArray?,
+    size: Dp,
+    title: String,
+    artist: String,
+    modifier: Modifier = Modifier
+) {
+    val scheme = MaterialTheme.colorScheme
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        CoverDisplay(coverBytes = coverBytes, size = size)
+        Spacer(Modifier.size(20.dp))
+        Text(
+            text = title.ifBlank { "未知歌曲" },
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = scheme.onBackground,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        if (artist.isNotBlank()) {
+            Spacer(Modifier.size(6.dp))
+            Text(
+                text = artist,
+                fontSize = 14.sp,
+                color = scheme.onBackground.copy(alpha = 0.65f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
 @Composable
 private fun NoCoverPlaceholder(
     size: Dp,
@@ -554,19 +622,20 @@ private fun ControlBar(
     onQueue: () -> Unit
 ) {
     val scheme = MaterialTheme.colorScheme
+    // 加大垂直留白与中间播放键尺寸，避免底部控制区过于紧凑
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
+            .padding(horizontal = 8.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
             Icon(
                 imageVector = playModeIcon(playMode),
                 contentDescription = playModeLabel(playMode),
-                tint = if (playMode != PlayMode.LIST) scheme.onPrimary else scheme.onBackground,
+                tint = if (playMode != PlayMode.LIST) scheme.primary else scheme.onBackground,
                 modifier = Modifier
-                    .size(44.dp)
+                    .size(48.dp)
                     .clickable(onClick = onCycleMode)
                     .padding(10.dp)
             )
@@ -577,17 +646,17 @@ private fun ControlBar(
                 contentDescription = "上一首",
                 tint = scheme.onBackground,
                 modifier = Modifier
-                    .size(52.dp)
+                    .size(56.dp)
                     .clickable(onClick = onPrev)
                     .padding(8.dp)
             )
         }
-        Box(Modifier.weight(1.4f), contentAlignment = Alignment.Center) {
+        Box(Modifier.weight(1.5f), contentAlignment = Alignment.Center) {
             Surface(
                 shape = CircleShape,
                 color = scheme.onPrimary,
                 modifier = Modifier
-                    .size(64.dp)
+                    .size(72.dp)
                     .clickable(onClick = onTogglePlay)
             ) {
                 Box(contentAlignment = Alignment.Center) {
@@ -595,7 +664,7 @@ private fun ControlBar(
                         imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                         contentDescription = if (isPlaying) "暂停" else "播放",
                         tint = scheme.primary,
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.size(40.dp)
                     )
                 }
             }
@@ -606,7 +675,7 @@ private fun ControlBar(
                 contentDescription = "下一首",
                 tint = scheme.onBackground,
                 modifier = Modifier
-                    .size(52.dp)
+                    .size(56.dp)
                     .clickable(onClick = onNext)
                     .padding(8.dp)
             )
@@ -617,7 +686,7 @@ private fun ControlBar(
                 contentDescription = "播放队列",
                 tint = scheme.onBackground,
                 modifier = Modifier
-                    .size(44.dp)
+                    .size(48.dp)
                     .clickable(onClick = onQueue)
                     .padding(10.dp)
             )
@@ -837,14 +906,14 @@ private fun formatTime(ms: Long): String {
 // ── 歌词面板：歌词视图 + 右上角「词」设置入口 ───────────────────────────
 
 /**
- * 歌词区域：包含 [LrcView] 与右上角的「词」设置按钮。
- *
- * 「词」按钮在歌词区域右上角以小圆角徽标形式出现，点击后弹出 [LyricsSettingsDialog]
- * 调整字号 / 行距 / 对齐 / 字重，保存后立即作用于歌词显示。
+ * 歌词区域：[LrcView] + 右上角「词」设置按钮。
+ * 歌名/歌手已在顶栏展示，此处不再重复，避免与顶栏、底部进度条视觉重叠。
  */
 @Composable
 private fun LyricsPane(
     lyrics: String,
+    title: String,
+    artist: String,
     highlightColor: Color,
     normalColor: Color,
     state: LrcViewState,
@@ -852,18 +921,27 @@ private fun LyricsPane(
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // title / artist 由顶栏统一展示，参数保留以便后续扩展
+    @Suppress("UNUSED_PARAMETER")
+    val _title = title
+    @Suppress("UNUSED_PARAMETER")
+    val _artist = artist
+
     // 在歌词面板内部收集播放进度：position 每 500ms 变化一次，但只有
     // currentIndex 真正切换时才会引起歌词列表的局部重组（LazyColumn 虚拟化，
     // 仅可见行参与）。放在 PlayerScreen 顶层收集会导致整页重组。
     LaunchedEffect(state) {
         positionFlow.collect { state.updateProgress(it) }
     }
-    Box(modifier = modifier) {
+    Box(modifier = modifier.fillMaxSize()) {
         LrcView(
             lrcText = lyrics,
             highlightColor = highlightColor,
             normalColor = normalColor,
             state = state,
+            // 上下留白，歌词不贴顶栏歌名、不贴底部进度条
+            contentPaddingTop = 28.dp,
+            contentPaddingBottom = 36.dp,
             modifier = Modifier.fillMaxSize()
         )
         // 「词」设置入口
@@ -872,7 +950,7 @@ private fun LyricsPane(
             color = Color.Black.copy(alpha = 0.28f),
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(12.dp)
+                .padding(top = 4.dp, end = 12.dp)
                 .size(width = 30.dp, height = 26.dp)
                 .clickable(onClick = onOpenSettings)
         ) {
