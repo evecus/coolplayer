@@ -307,11 +307,9 @@ fun PlayerScreen(
                                 modifier = Modifier.weight(1.1f).fillMaxSize(),
                                 contentAlignment = Alignment.Center
                             ) {
-                                CoverWithMeta(
+                                CoverDisplay(
                                     coverBytes = coverBytes,
                                     size = coverSize,
-                                    title = title,
-                                    artist = artist,
                                     modifier = Modifier.padding(16.dp)
                                 )
                             }
@@ -336,11 +334,9 @@ fun PlayerScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 if (page == 0) {
-                                    CoverWithMeta(
+                                    CoverDisplay(
                                         coverBytes = coverBytes,
-                                        size = coverSize,
-                                        title = title,
-                                        artist = artist
+                                        size = coverSize
                                     )
                                 } else {
                                     LyricsPane(
