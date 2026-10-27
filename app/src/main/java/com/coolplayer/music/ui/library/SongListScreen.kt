@@ -80,8 +80,8 @@ import kotlinx.coroutines.launch
  * 歌曲列表页：分类=SONG 时显示。
  *
  * 顶部：随机播放图标 + 歌曲总数、排序按钮、多选按钮。
- * 右侧：字母索引条，可拖动快速定位。
- * 点击歌曲播放并进入播放页；多选模式下可批量删除/加入歌单。
+ * 右侧：字母索引条（仅名称类排序时显示：标题/文件名/专辑/艺术家），可拖动快速定位。
+ * 点击歌曲直接播放，不自动进入播放页；多选模式下可批量删除/加入歌单。
  */
 @Composable
 fun SongListScreen(vm: LibraryViewModel, navController: NavHostController) {
@@ -104,11 +104,26 @@ fun SongListScreen(vm: LibraryViewModel, navController: NavHostController) {
 
     val songListState = rememberLazyListState()
 
-    // 索引：每个字母第一次出现对应的歌曲下标
-    val letterFirstIndex = remember(songs) {
+    // 仅在按「名称类」字段排序时显示右侧字母索引（标题/文件名/专辑/艺术家）
+    // 修改时间、大小、时长、播放次数排序时隐藏索引条
+    val showAlphabetIndex = sortFieldValue in setOf(
+        SongSortField.TITLE,
+        SongSortField.FILE_NAME,
+        SongSortField.ALBUM,
+        SongSortField.ARTIST
+    )
+
+    // 索引：每个字母第一次出现对应的歌曲下标（按当前排序字段取首字母）
+    val letterFirstIndex = remember(songs, sortFieldValue) {
         val map = linkedMapOf<String, Int>()
         songs.forEachIndexed { idx, song ->
-            val key = firstIndexKeyOf(song.title)
+            val text = when (sortFieldValue) {
+                SongSortField.FILE_NAME -> song.name
+                SongSortField.ALBUM -> song.album.ifBlank { song.title }
+                SongSortField.ARTIST -> song.artist.ifBlank { song.title }
+                else -> song.title // TITLE 及其他（虽然非名称类不会用到）
+            }
+            val key = firstIndexKeyOf(text)
             if (key !in map) map[key] = idx
         }
         map
@@ -187,24 +202,26 @@ fun SongListScreen(vm: LibraryViewModel, navController: NavHostController) {
                                             selectedPaths.add(song.path)
                                         }
                                     } else {
+                                        // 点击歌曲只播放，不自动进入播放界面
                                         val p = PlayerConnection.player.value
                                         p?.playPlaylist(songs, index)
-                                        AppNavigator.toPlayer(navController)
                                     }
                                 }
                             )
                         }
                     }
 
-                    AlphabetIndexBar(
-                        modifier = Modifier.fillMaxHeight().padding(vertical = 4.dp),
-                        onLetterSelected = { letter ->
-                            val idx = letterFirstIndex[letter]
-                            if (idx != null) {
-                                scope.launch { songListState.scrollToItem(idx) }
+                    if (showAlphabetIndex) {
+                        AlphabetIndexBar(
+                            modifier = Modifier.fillMaxHeight().padding(vertical = 4.dp),
+                            onLetterSelected = { letter ->
+                                val idx = letterFirstIndex[letter]
+                                if (idx != null) {
+                                    scope.launch { songListState.scrollToItem(idx) }
+                                }
                             }
-                        }
-                    )
+                        )
+                    }
                 }
             }
         }
@@ -880,9 +897,9 @@ fun SearchScreen(vm: LibraryViewModel, navController: NavHostController, onBack:
                                 selected = false,
                                 onToggleSelect = {},
                                 onClick = {
+                                    // 点击歌曲只播放，不自动进入播放界面
                                     val p = PlayerConnection.player.value
                                     p?.playPlaylist(results, index)
-                                    AppNavigator.toPlayer(navController)
                                 }
                             )
                         }

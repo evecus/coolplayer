@@ -119,8 +119,8 @@ fun GroupDetailScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
+                                // 点击歌曲只播放，不自动进入播放界面
                                 PlayerConnection.player.value?.playPlaylist(songs, i)
-                                AppNavigator.toPlayer(navController)
                             }
                             .padding(horizontal = if (isTablet) 20.dp else 16.dp, vertical = if (isTablet) 12.dp else 10.dp)
                     ) {
