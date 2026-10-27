@@ -105,6 +105,20 @@ class MusicPlayer(
                 /* handleAudioFocus = */ true
             )
             .setTrackSelector(trackSelector)
+            // ── 后台播放 CPU 的主因（media3 1.4.1 源码实证）──
+            // ExoPlayerImplInternal.scheduleNextWork：播放中且未开启动态调度时，
+            // 播放主循环（doSomeWork）固定每 BUFFERING_MAXIMUM_INTERVAL_MS = 10ms
+            // 唤醒一次，即每秒 100 次：每次都要 renderer.render（MediaCodec
+            // dequeue/queue + AudioTrack write）+ 状态检查 + 消息分发。纯音频
+            // 播放一个 320k MP3 每 10ms 只需要极少量工作，大部分唤醒都是空转，
+            // 却让 CPU 无法进入深度空闲，累计就是 20% 量级的占用。
+            //
+            // 开启动态调度后，主循环按 Renderer.getDurationToProgressUs 精确睡到
+            // “下一次真正能推进”的时刻（MediaCodecAudioRenderer 据 AudioTrack
+            // 已缓冲时长返回约一半缓冲时长，上限 READY_MAXIMUM_INTERVAL_MS=1000ms），
+            // 唤醒频率从 100Hz 降到十几 Hz 以内；缓冲被消耗/seek/切歌时由
+            // Renderer.WakeupListener.onWakeup 立即唤醒，不会影响响应或造成断音。
+            .experimentalSetDynamicSchedulingEnabled(true)
             .build()
     }
     val player: ExoPlayer get() = exoPlayer

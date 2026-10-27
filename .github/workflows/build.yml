@@ -5,6 +5,7 @@ on:
     inputs:
       version:
         description: '版本号，例如 v1.0.0（也会作为 Release 的 tag）'
+        default: v1.0.0
         required: true
         type: string
 

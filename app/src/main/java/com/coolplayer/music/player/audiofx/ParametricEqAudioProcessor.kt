@@ -113,7 +113,13 @@ class ParametricEqAudioProcessor : BaseAudioProcessor() {
         }
         channelCount = inputAudioFormat.channelCount
         sampleRateHz = inputAudioFormat.sampleRate
-        rebuildFilters(activePreset)
+        // 必须在此消费 pendingPreset：isActive() 在 configure 之后立刻被 pipeline
+        // 读取，若仍用旧的 activePreset（原声），切歌 / EQ 开关触发的重载后
+        // isActive()=false，处理器被整链 bypass，queueInput 永远不会被调用，
+        // pendingPreset 也就永远不生效——EQ 选了却没声音变化。
+        val target = pendingPreset ?: activePreset
+        pendingPreset = null
+        rebuildFilters(target)
         return inputAudioFormat
     }
 
