@@ -18,7 +18,7 @@ android {
         minSdk = 24
         targetSdk = 34
         versionCode = 1
-        versionName = "1.0.0"
+        versionName = "1.0.0-tv"
     }
 
     // 签名配置：与原 coolplayer 的 GitHub workflow 约定保持一致。
