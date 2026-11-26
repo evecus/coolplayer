@@ -1,0 +1,147 @@
+package com.coolplayer.music.data
+
+import java.io.File
+import org.jaudiotagger.audio.AudioFileIO
+import org.jaudiotagger.tag.FieldKey
+
+/**
+ * 音频元数据（标题 / 艺人 / 专辑 / 封面 / 歌词）。
+ *
+ * 底层由 [AudioMetadataReader] 用 JAudioTagger 解析，覆盖 MP3(ID3v1/v2) / FLAC(Vorbis
+ * Comment + METADATA_BLOCK_PICTURE) / OGG(Vorbis Comment) / M4A/AAC(MP4 box) /
+ * WMA / APE 等主流格式的标签与内嵌封面。
+ */
+data class AudioMetadata(
+    val title: String? = null,
+    val artist: String? = null,
+    val album: String? = null,
+    val coverBytes: ByteArray? = null,
+    val lyrics: String? = null
+) {
+    // ByteArray 在 data class 中默认按引用比较，重写以按内容比较
+    override fun equals(other: Any?): Boolean = this === other
+    override fun hashCode(): Int = System.identityHashCode(this)
+}
+
+/**
+ * 基于 JAudioTagger 的音频元数据读取器。
+ *
+ * 替换了此前纯 Kotlin 手写、只支持 MP3(ID3v2) 的解析器：JAudioTagger 对每种容器格式
+ * 使用各自正确的标签体系（ID3v2 / Vorbis Comment / MP4 atom 等），因此 FLAC、M4A、OGG
+ * 等此前无法读出标题 / 封面的格式现在也能正确解析。
+ */
+object AudioMetadataReader {
+
+    /**
+     * 读取音频文件元数据。
+     *
+     * @param compressCoverForThumbnail 若为 true，返回的 [AudioMetadata.coverBytes]
+     *   会先经过 [BitmapDecodeUtil.compressForStorage] 降采样压缩成列表/专辑网格
+     *   用的小图缩略图，用于扫描阶段写入 [SongCoverEntity] 数据库缓存表。
+     *   默认为 false，返回音频文件内嵌的原始封面字节（不做任何压缩）——
+     *   [com.coolplayer.music.player.MusicPlayer] 播放时读取封面用于播放页
+     *   展示，需要保留最佳画质，不应传 true。
+     */
+    fun readFile(filePath: String, compressCoverForThumbnail: Boolean = false): AudioMetadata {
+        val file = File(filePath)
+        if (!file.exists()) return AudioMetadata()
+
+        val result = runCatching {
+            val audioFile = AudioFileIO.read(file)
+            val tag = audioFile.tag
+
+            val title = tag?.getFirst(FieldKey.TITLE)?.takeIf { it.isNotBlank() }
+            val artist = tag?.getFirst(FieldKey.ARTIST)?.takeIf { it.isNotBlank() }
+            val album = tag?.getFirst(FieldKey.ALBUM)?.takeIf { it.isNotBlank() }
+
+            // 优先取内嵌歌词标签（部分格式为 LYRICS，部分为 UNSYNCED_LYRICS）
+            val lyrics = tag?.getFirst(FieldKey.LYRICS)?.takeIf { it.isNotBlank() }
+
+            // 封面：取第一张内嵌图片（多数音频文件只有一张封面）。
+            val coverBytes = runCatching {
+                tag?.firstArtwork?.binaryData?.let { raw ->
+                    if (compressCoverForThumbnail) {
+                        // 压缩失败（非图片数据、损坏等）时不要 fallback 成 raw：raw 是未压缩的
+                        // 原始封面，可能几百 KB～几 MB，写进 song_cover 表会失去限制小图体积的
+                        // 意义。压缩失败就当作没有封面，调用方按 null 处理（不写入该曲目封面）。
+                        BitmapDecodeUtil.compressForStorage(raw)
+                    } else {
+                        raw
+                    }
+                }
+            }.getOrNull()
+
+            AudioMetadata(title, artist, album, coverBytes, lyrics)
+        }.getOrElse { AudioMetadata() }
+
+        // 无内嵌歌词时查找外部 .lrc 文件
+        if (result.lyrics.isNullOrEmpty()) {
+            val lrc = readSidecarLrc(filePath)
+            if (lrc != null) {
+                return result.copy(lyrics = lrc)
+            }
+        }
+        return result
+    }
+
+    /**
+     * 只读取内嵌封面字节，跳过标签字段解析与外部 LRC 查找。
+     *
+     * 用于播放页：数据库里已经有完整标签（扫描阶段持久化），但播放页要展示
+     * 原图画质，此时只需要 artwork 一份数据。相比 [readFile] 省掉了
+     * 标签字段遍历与副作用文件查找，配合
+     * [com.coolplayer.music.player.CoverCache] 可在绝大多数切歌场景下
+     * 完全避免读盘。
+     *
+     * 注意：JAudioTagger 的 `AudioFileIO.read` 内部仍会读取音频头（用于
+     * 判断容器格式），这是该库无法绕过的部分；真正的收益来自命中缓存时
+     * 连文件都不打开。
+     */
+    fun readCoverOnly(filePath: String): ByteArray? {
+        val file = File(filePath)
+        if (!file.exists()) return null
+        return runCatching {
+            val audioFile = AudioFileIO.read(file)
+            audioFile.tag?.firstArtwork?.binaryData
+        }.getOrNull()
+    }
+
+    private fun readSidecarLrc(audioPath: String): String? {
+        val base = audioPath.substringBeforeLast('.', audioPath)
+        for (ext in listOf(".lrc", ".LRC")) {
+            val f = File("$base$ext")
+            if (f.exists()) {
+                return runCatching { f.readText(Charsets.UTF_8) }
+                    .getOrElse { f.readText(Charsets.ISO_8859_1) }
+            }
+        }
+        return null
+    }
+}
+
+// ── LRC 解析 ───────────────────────────────────────────────────────────
+
+data class LrcLine(val time: Long, val text: String)
+
+fun parseLrc(lrcText: String): List<LrcLine> {
+    val lines = mutableListOf<LrcLine>()
+    val regex = Regex("""\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)""")
+
+    for (rawLine in lrcText.split('\n')) {
+        val line = rawLine.trim()
+        for (match in regex.findAll(line)) {
+            val min = match.groupValues[1].toInt()
+            val sec = match.groupValues[2].toInt()
+            val msStr = match.groupValues[3]
+            val ms = when (msStr.length) {
+                2 -> msStr.toInt() * 10
+                3 -> msStr.toInt()
+                else -> 0
+            }
+            val text = match.groupValues[4].trim()
+            lines.add(LrcLine(min * 60_000L + sec * 1000L + ms, text))
+        }
+    }
+    lines.sortBy { it.time }
+    return lines
+}
