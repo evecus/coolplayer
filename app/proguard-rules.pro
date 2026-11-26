@@ -43,7 +43,9 @@
 -keep class com.coolplayer.music.service.** { *; }
 -keep class com.coolplayer.music.player.** { *; }
 
-# ── TinyPinyin ──────────────────────────────────────────────────────────
--keep class com.github.promeg.pinyinhelper.** { *; }
--dontwarn com.github.promeg.pinyinhelper.**
+# ── pinyin4j ──────────────────────────────────────────────────────────
+-keep class net.sourceforge.pinyin4j.** { *; }
+-dontwarn net.sourceforge.pinyin4j.**
+-dontwarn com.hp.hpl.sparta.**
+-dontwarn demo.**
 

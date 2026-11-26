@@ -18,7 +18,7 @@ android {
         minSdk = 24
         targetSdk = 34
         versionCode = 1
-        versionName = "1.0.0"
+        versionName = "1.0.0-tv"
     }
 
     // 签名配置：与原 coolplayer 的 GitHub workflow 约定保持一致。
@@ -135,6 +135,7 @@ dependencies {
     // Android 上无法运行，故使用这个移除了这些依赖、额外加强 Opus/MP4-DASH 支持的 fork。
     implementation("com.github.Adonai:jaudiotagger:2.3.14")
 
-    // TinyPinyin：中文按拼音首字母排序 / 右侧字母索引（爱→A，城→C）
-    implementation("com.github.promeg:tinypinyin:2.0.3")
+    // pinyin4j：中文按拼音首字母排序 / 右侧字母索引（爱→A，城→C）。
+    // 原 TinyPinyin 只发布在已关闭的 JCenter，官方源已无法解析，改用 Maven Central 上的 pinyin4j。
+    implementation("com.belerweb:pinyin4j:2.5.1")
 }

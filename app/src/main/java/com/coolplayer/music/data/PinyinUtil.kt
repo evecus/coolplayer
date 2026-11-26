@@ -1,6 +1,11 @@
 package com.coolplayer.music.data
 
-import com.github.promeg.pinyinhelper.Pinyin
+import net.sourceforge.pinyin4j.PinyinHelper
+import net.sourceforge.pinyin4j.format.HanyuPinyinCaseType
+import net.sourceforge.pinyin4j.format.HanyuPinyinOutputFormat
+import net.sourceforge.pinyin4j.format.HanyuPinyinToneType
+import net.sourceforge.pinyin4j.format.HanyuPinyinVCharType
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * 中文拼音工具：用于名称类排序与右侧字母索引。
@@ -9,6 +14,23 @@ import com.github.promeg.pinyinhelper.Pinyin
  * - [firstLetterKey]：取首字母索引键（0 / A–Z / #），汉字按拼音首字母归组。
  */
 object PinyinUtil {
+
+    // 使用 pinyin4j（Maven Central）。无声调、小写、ü 记作 v。
+    private val format = HanyuPinyinOutputFormat().apply {
+        caseType = HanyuPinyinCaseType.LOWERCASE
+        toneType = HanyuPinyinToneType.WITHOUT_TONE
+        vCharType = HanyuPinyinVCharType.WITH_V
+    }
+    private val cache = ConcurrentHashMap<Char, String>()
+
+    /** 单个汉字转拼音（小写无声调）；多音字取第一个读音，查不到则返回原字符。 */
+    private fun toPinyin(c: Char): String = cache.getOrPut(c) {
+        try {
+            PinyinHelper.toHanyuPinyinStringArray(c, format)?.firstOrNull() ?: c.toString()
+        } catch (e: Exception) {
+            c.toString()
+        }
+    }
 
     /** 汉字 Unicode 大致范围（CJK Unified Ideographs）。 */
     private fun Char.isCjk(): Boolean = this in '\u4e00'..'\u9fff'
@@ -23,7 +45,7 @@ object PinyinUtil {
         val sb = StringBuilder(src.length * 2)
         for (c in src) {
             when {
-                c.isCjk() -> sb.append(Pinyin.toPinyin(c).lowercase())
+                c.isCjk() -> sb.append(toPinyin(c))
                 else -> sb.append(c.lowercaseChar())
             }
         }
@@ -43,7 +65,7 @@ object PinyinUtil {
             c.isDigit() -> "0"
             c in 'A'..'Z' || c in 'a'..'z' -> c.uppercaseChar().toString()
             c.isCjk() -> {
-                val py = Pinyin.toPinyin(c)
+                val py = toPinyin(c)
                 val first = py.firstOrNull()?.uppercaseChar()
                 if (first != null && first in 'A'..'Z') first.toString() else "#"
             }
