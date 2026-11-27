@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- 纯 TV：触摸非必需，leanback 可选；入口仅保留 LEANBACK_LAUNCHER -->
+    <!-- 纯 TV：触摸非必需，leanback 可选 -->
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <uses-feature android:name="android.software.leanback" android:required="false" />
 
@@ -34,10 +34,12 @@
             android:configChanges="screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
             android:theme="@style/Theme.CoolPlayer">
-            <!-- TV 桌面入口 -->
+            <!-- 桌面入口：LEANBACK_LAUNCHER 供标准 Android TV 主屏使用；
+                 LAUNCHER 供机顶盒 / 投影仪 / 第三方桌面等使用标准启动器的设备（否则看不到图标） -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+                <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
