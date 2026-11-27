@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -33,7 +32,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -57,8 +55,8 @@ import com.coolplayer.music.player.audiofx.EqPresetRepository
 import com.coolplayer.music.player.audiofx.FilterType
 import com.coolplayer.music.player.audiofx.ParametricEqAudioProcessor
 import com.coolplayer.music.ui.component.lxFocusRing
-import com.coolplayer.music.ui.component.lxFocusable
-import com.coolplayer.music.ui.theme.currentWindowInfo
+import com.coolplayer.music.ui.component.TvCircleButton
+import com.coolplayer.music.ui.component.TvFocusSurface
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.math.exp
@@ -126,38 +124,21 @@ fun AudioFxScreen(
         customPresets = EqPresetIO.loadCustomPresets()
     }
 
-    val windowInfo = currentWindowInfo
-    val isTablet = windowInfo.isTablet
-
     Box(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
         contentAlignment = Alignment.TopCenter
     ) {
-        if (isTablet) {
-            TabletAudioFxLayout(
-                currentPreset = currentPreset,
-                stylePresets = stylePresets,
-                headphonePresets = headphonePresets,
-                customPresets = customPresets,
-                eqProcessor = eqProcessor,
-                onBack = onBack,
-                onExport = onExport,
-                onImport = onImport,
-                onDeleteCustom = onDeleteCustom
-            )
-        } else {
-            PhoneAudioFxLayout(
-                currentPreset = currentPreset,
-                stylePresets = stylePresets,
-                headphonePresets = headphonePresets,
-                customPresets = customPresets,
-                eqProcessor = eqProcessor,
-                onBack = onBack,
-                onExport = onExport,
-                onImport = onImport,
-                onDeleteCustom = onDeleteCustom
-            )
-        }
+        AudioFxLayout(
+            currentPreset = currentPreset,
+            stylePresets = stylePresets,
+            headphonePresets = headphonePresets,
+            customPresets = customPresets,
+            eqProcessor = eqProcessor,
+            onBack = onBack,
+            onExport = onExport,
+            onImport = onImport,
+            onDeleteCustom = onDeleteCustom
+        )
     }
 }
 
@@ -186,97 +167,21 @@ private fun AudioFxTopBar(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        IconButton(onClick = onImport, modifier = Modifier.lxFocusable(shape = CircleShape)) {
+        TvCircleButton(onClick = onImport) {
             Icon(
                 Icons.Default.Upload,
                 contentDescription = "导入预设",
                 modifier = Modifier.rotate(180f)
             )
         }
-        IconButton(onClick = onExport, modifier = Modifier.lxFocusable(shape = CircleShape)) {
+        TvCircleButton(onClick = onExport) {
             Icon(Icons.Default.Upload, contentDescription = "导出预设")
         }
     }
 }
 
 @Composable
-private fun TabletAudioFxLayout(
-    currentPreset: EqPreset,
-    stylePresets: List<EqPreset>,
-    headphonePresets: List<EqPreset>,
-    customPresets: List<EqPreset>,
-    eqProcessor: ParametricEqAudioProcessor,
-    onBack: () -> Unit,
-    onExport: () -> Unit,
-    onImport: () -> Unit,
-    onDeleteCustom: (EqPreset) -> Unit
-) {
-    Row(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
-        Column(
-            modifier = Modifier.weight(1f).fillMaxHeight()
-        ) {
-            AudioFxTopBar(
-                currentPreset = currentPreset,
-                onBack = onBack,
-                onExport = onExport,
-                onImport = onImport
-            )
-            EqCurveChart(
-                preset = currentPreset,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(360.dp)
-                    .padding(24.dp)
-            )
-        }
-
-        VerticalDivider()
-
-        Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(top = 56.dp)
-            ) {
-                item { SectionHeader("通用风格") }
-                items(stylePresets) { preset ->
-                    PresetRow(
-                        preset = preset,
-                        selected = preset.id == currentPreset.id,
-                        onClick = { eqProcessor.setPreset(preset) }
-                    )
-                }
-                if (headphonePresets.isNotEmpty()) {
-                    item { SectionHeader("热门耳机（AutoEQ 校正数据）") }
-                    items(headphonePresets) { preset ->
-                        PresetRow(
-                            preset = preset,
-                            selected = preset.id == currentPreset.id,
-                            onClick = { eqProcessor.setPreset(preset) }
-                        )
-                    }
-                }
-                item {
-                    AutoEqSearchSection(
-                        onApply = { preset -> eqProcessor.setPreset(preset) }
-                    )
-                }
-                if (customPresets.isNotEmpty()) {
-                    item { SectionHeader("我的预设（导入）") }
-                    items(customPresets) { preset ->
-                        DeletablePresetRow(
-                            preset = preset,
-                            selected = preset.id == currentPreset.id,
-                            onClick = { eqProcessor.setPreset(preset) },
-                            onDelete = { onDeleteCustom(preset) }
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun PhoneAudioFxLayout(
+private fun AudioFxLayout(
     currentPreset: EqPreset,
     stylePresets: List<EqPreset>,
     headphonePresets: List<EqPreset>,
@@ -400,7 +305,7 @@ private fun AutoEqSearchSection(onApply: (EqPreset) -> Unit) {
             singleLine = true,
             trailingIcon = {
                 if (query.isNotEmpty()) {
-                    IconButton(onClick = { query = "" }, modifier = Modifier.lxFocusable(shape = CircleShape)) {
+                    TvCircleButton(onClick = { query = "" }, size = 40.dp) {
                         Icon(Icons.Default.Close, contentDescription = "清空")
                     }
                 }
@@ -411,13 +316,15 @@ private fun AutoEqSearchSection(onApply: (EqPreset) -> Unit) {
             Spacer(modifier = Modifier.height(4.dp))
             LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
                 items(results) { entry ->
+                    TvFocusSurface(
+                        onClick = { AutoEqCatalog.presetAt(context, entry)?.let(onApply) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp),
+                        focusedScale = 1.02f,
+                    ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .lxFocusable(shape = RoundedCornerShape(8.dp))
-                            .clickable {
-                                AutoEqCatalog.presetAt(context, entry)?.let(onApply)
-                            }
                             .padding(horizontal = 4.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -429,6 +336,7 @@ private fun AutoEqSearchSection(onApply: (EqPreset) -> Unit) {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+                    }
                     }
                     Divider()
                 }
@@ -457,16 +365,14 @@ private fun SectionHeader(text: String) {
 
 @Composable
 private fun PresetRow(preset: EqPreset, selected: Boolean, onClick: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .lxFocusable(shape = RoundedCornerShape(8.dp))
-            .clickable(onClick = onClick)
-            .background(
-                if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
-                else Color.Transparent
-            )
+    TvFocusSurface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        containerColor = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f) else Color.Transparent,
+        focusedScale = 1.02f,
     ) {
+    Column(modifier = Modifier.fillMaxWidth()) {
         Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
             Column {
                 Text(
@@ -483,6 +389,7 @@ private fun PresetRow(preset: EqPreset, selected: Boolean, onClick: () -> Unit) 
         }
         Divider()
     }
+    }
 }
 
 @Composable
@@ -492,15 +399,15 @@ private fun DeletablePresetRow(
     onClick: () -> Unit,
     onDelete: () -> Unit
 ) {
+    TvFocusSurface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        containerColor = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f) else Color.Transparent,
+        focusedScale = 1.02f,
+    ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .lxFocusable(shape = RoundedCornerShape(8.dp))
-            .background(
-                if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
-                else Color.Transparent
-            )
-            .clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(modifier = Modifier.weight(1f).padding(horizontal = 16.dp, vertical = 12.dp)) {
@@ -517,13 +424,14 @@ private fun DeletablePresetRow(
                 )
             }
         }
-        IconButton(onClick = onDelete, modifier = Modifier.lxFocusable(shape = CircleShape)) {
+        TvCircleButton(onClick = onDelete) {
             Icon(
                 Icons.Default.Delete,
                 contentDescription = "删除",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+    }
     }
     Divider()
 }

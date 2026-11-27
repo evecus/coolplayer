@@ -1,10 +1,10 @@
 package com.coolplayer.music.ui.library
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -56,7 +56,7 @@ import com.coolplayer.music.player.PlayerConnection
 import com.coolplayer.music.ui.component.LxIconButton
 import com.coolplayer.music.ui.component.SongMenuDialog
 import com.coolplayer.music.ui.component.TvAccent
-import com.coolplayer.music.ui.component.lxFocusable
+import com.coolplayer.music.ui.component.TvFocusSurface
 import kotlinx.coroutines.launch
 
 /**
@@ -150,16 +150,18 @@ private fun SongColumn(songs: List<SongEntry>, onMenuClick: (SongEntry) -> Unit)
     val player = PlayerConnection.player.collectAsState().value
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        // 水平/垂直留白：给聚焦放大与光晕留出空间，避免被列表边界裁切
+        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         itemsIndexed(songs, key = { _, s -> s.path }) { index, song ->
             val playing = player?.let { p ->
                 p.playlist.value.getOrNull(p.currentIdx.value)?.path == song.path && p.isPlaying.value
             } ?: false
-            Row(
+            TvFocusSurface(
+                onClick = { player?.playPlaylist(songs, index) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .lxFocusable(shape = RoundedCornerShape(10.dp))
                     // 遥控器菜单键（MENU=82 / CONTEXT_MENU=183）弹出歌曲操作
                     .onPreviewKeyEvent { e ->
                         val code = e.nativeKeyEvent.keyCode
@@ -169,13 +171,15 @@ private fun SongColumn(songs: List<SongEntry>, onMenuClick: (SongEntry) -> Unit)
                             onMenuClick(song)
                             true
                         } else false
-                    }
-                    .clickable { player?.playPlaylist(songs, index) }
-                    .background(
-                        if (playing) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-                        else MaterialTheme.colorScheme.surface,
-                        RoundedCornerShape(10.dp),
-                    )
+                    },
+                shape = RoundedCornerShape(10.dp),
+                containerColor = if (playing) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                else MaterialTheme.colorScheme.surface,
+                focusedScale = 1.02f,
+            ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -202,6 +206,7 @@ private fun SongColumn(songs: List<SongEntry>, onMenuClick: (SongEntry) -> Unit)
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
             }
         }
     }
@@ -247,15 +252,20 @@ private fun GroupGrid(
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = 180.dp),
         modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         itemsIndexed(groups, key = { _, g -> g.key }) { _, group ->
+            TvFocusSurface(
+                onClick = { onOpenGroup(category, group.key) },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                focusedScale = 1.08f,
+            ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .lxFocusable(shape = RoundedCornerShape(12.dp))
-                    .clickable { onOpenGroup(category, group.key) }
                     .padding(8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
@@ -273,6 +283,7 @@ private fun GroupGrid(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
             }
         }
     }

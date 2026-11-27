@@ -43,7 +43,7 @@ import com.coolplayer.music.player.PlayerConnection
 import com.coolplayer.music.ui.component.LxIconButton
 import com.coolplayer.music.ui.component.SongMenuDialog
 import com.coolplayer.music.ui.component.TvAccent
-import com.coolplayer.music.ui.component.lxFocusable
+import com.coolplayer.music.ui.component.TvFocusSurface
 import kotlinx.coroutines.launch
 
 /** TV 分组详情页：专辑/歌手/文件夹下的歌曲列表 */
@@ -93,15 +93,15 @@ fun TvGroupDetailScreen(
 
         Spacer(Modifier.padding(vertical = 8.dp))
 
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        LazyColumn(contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             itemsIndexed(songs, key = { _, s -> s.path }) { index, song ->
                 val playing = player?.let { p ->
                     p.playlist.value.getOrNull(p.currentIdx.value)?.path == song.path && p.isPlaying.value
                 } ?: false
-                Row(
+                TvFocusSurface(
+                    onClick = { player?.playPlaylist(songs, index) },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .lxFocusable(shape = RoundedCornerShape(10.dp))
                         .onPreviewKeyEvent { e ->
                             val code = e.nativeKeyEvent.keyCode
                             if (e.type == KeyEventType.KeyDown &&
@@ -110,13 +110,13 @@ fun TvGroupDetailScreen(
                                 menuSong = song
                                 true
                             } else false
-                        }
-                        .background(
-                            if (playing) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f) else MaterialTheme.colorScheme.surface,
-                            RoundedCornerShape(10.dp),
-                        )
-                        .clickable { player?.playPlaylist(songs, index) }
-                        .padding(12.dp),
+                        },
+                    shape = RoundedCornerShape(10.dp),
+                    containerColor = if (playing) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f) else MaterialTheme.colorScheme.surface,
+                    focusedScale = 1.02f,
+                ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text("${index + 1}", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(40.dp))
@@ -124,6 +124,7 @@ fun TvGroupDetailScreen(
                         Text(song.title.ifBlank { song.name }, fontWeight = if (playing) FontWeight.Bold else FontWeight.Normal, color = if (playing) TvAccent else MaterialTheme.colorScheme.onSurface, maxLines = 1)
                         Text(song.artist, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                     }
+                }
                 }
             }
         }

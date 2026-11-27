@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- TV：触摸非必需，leanback 可选（仍保留 LAUNCHER 便于手机调试/安装） -->
+    <!-- 纯 TV：触摸非必需，leanback 可选；入口仅保留 LEANBACK_LAUNCHER -->
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <uses-feature android:name="android.software.leanback" android:required="false" />
 
@@ -33,14 +33,9 @@
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
-            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:configChanges="screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
-            android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.CoolPlayer">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
             <!-- TV 桌面入口 -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -64,7 +59,5 @@
                 <action android:name="android.media.browse.MediaBrowserService" />
             </intent-filter>
         </service>
-
-        <!-- 桌面小部件 4x2：TV 端不展示，但保留代码兼容（manifest 声明移除） -->
     </application>
 </manifest>

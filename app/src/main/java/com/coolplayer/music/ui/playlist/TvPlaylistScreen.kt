@@ -53,6 +53,7 @@ import com.coolplayer.music.player.PlayerConnection
 import com.coolplayer.music.ui.component.LxIconButton
 import com.coolplayer.music.ui.component.TvAccent
 import com.coolplayer.music.ui.component.TvTextDark
+import com.coolplayer.music.ui.component.TvFocusSurface
 import com.coolplayer.music.ui.component.lxFocusRing
 import com.coolplayer.music.ui.component.lxFocusable
 import kotlinx.coroutines.launch
@@ -113,7 +114,7 @@ fun TvPlaylistScreen(
                 LxIconButton(onClick = { showCreate = true }, imageVector = Icons.Default.Add, contentDescription = "新建歌单", compact = true)
             }
             Spacer(Modifier.padding(vertical = 4.dp))
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            LazyColumn(contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 // 收藏（虚拟项）
                 item {
                     NavigationItem(
@@ -148,7 +149,7 @@ fun TvPlaylistScreen(
                     Text("歌单暂无歌曲", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             } else {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                LazyColumn(contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     itemsIndexed(songEntries, key = { _, s -> s.path }) { index, song ->
                         PlaylistSongRow(
                             song = song,
@@ -198,16 +199,15 @@ private fun NavigationItem(
     onClick: () -> Unit,
     onDelete: (() -> Unit)? = null,
 ) {
+    TvFocusSurface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(10.dp),
+        containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+        focusedScale = 1.03f,
+    ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .lxFocusable(shape = RoundedCornerShape(10.dp))
-            .background(
-                if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
-                RoundedCornerShape(10.dp),
-            )
-            .clickable(onClick = onClick)
-            .padding(12.dp),
+        modifier = Modifier.fillMaxWidth().padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(icon, contentDescription = null, tint = if (selected) TvAccent else MaterialTheme.colorScheme.onSurfaceVariant)
@@ -224,6 +224,7 @@ private fun NavigationItem(
             LxIconButton(onClick = onDelete, imageVector = Icons.Default.Delete, contentDescription = "删除歌单", tint = MaterialTheme.colorScheme.error, compact = true)
         }
     }
+    }
 }
 
 @Composable
@@ -232,17 +233,16 @@ private fun PlaylistSongRow(song: SongEntry, index: Int, durationMs: Long, onCli
     val playing = player?.let { p ->
         p.playlist.value.getOrNull(p.currentIdx.value)?.path == song.path && p.isPlaying.value
     } ?: false
+    TvFocusSurface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(10.dp),
+        containerColor = if (playing) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+        else MaterialTheme.colorScheme.surface,
+        focusedScale = 1.02f,
+    ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .lxFocusable(shape = RoundedCornerShape(10.dp))
-            .clickable(onClick = onClick)
-            .background(
-                if (playing) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-                else MaterialTheme.colorScheme.surface,
-                RoundedCornerShape(10.dp),
-            )
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         SongThumb(song = song)
@@ -268,6 +268,7 @@ private fun PlaylistSongRow(song: SongEntry, index: Int, durationMs: Long, onCli
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
     }
 }
 

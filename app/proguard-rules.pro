@@ -36,9 +36,6 @@
 -keepattributes *Annotation*, InnerClasses, Signature, Exceptions
 -keep class kotlin.Metadata { *; }
 
-# ── AppWidget / RemoteViews 入口类 ───────────────────────────────────────
--keep class com.coolplayer.music.ui.widget.** { *; }
-
 # ── MediaSession / 通知栏控制回调（系统通过反射/隐式 Intent 调起） ─────────
 -keep class com.coolplayer.music.service.** { *; }
 -keep class com.coolplayer.music.player.** { *; }

@@ -6,7 +6,6 @@ import android.content.ContextWrapper
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -62,12 +61,11 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.coolplayer.music.player.PlayerConnection
-import com.coolplayer.music.ui.adaptive.LocalAdaptive
 import com.coolplayer.music.ui.audiofx.AudioFxScreen
 import com.coolplayer.music.ui.component.TvAccent
 import com.coolplayer.music.ui.component.TvAccentSoft
 import com.coolplayer.music.ui.component.TvTextDark
-import com.coolplayer.music.ui.component.lxFocusable
+import com.coolplayer.music.ui.component.TvFocusSurface
 import com.coolplayer.music.ui.library.LibraryViewModel
 import com.coolplayer.music.ui.library.MusicCategory
 import com.coolplayer.music.ui.library.ScanSettingsScreen
@@ -269,15 +267,12 @@ private fun LeftNavBar(
         )
 
         // 顶部播放入口
-        Box(
-            modifier = Modifier
-                .size(56.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primaryContainer)
-                .lxFocusable(shape = CircleShape)
-                .clickable(onClick = onOpenPlayer)
-                .align(Alignment.CenterHorizontally),
-            contentAlignment = Alignment.Center,
+        TvFocusSurface(
+            onClick = onOpenPlayer,
+            modifier = Modifier.size(56.dp).align(Alignment.CenterHorizontally),
+            shape = CircleShape,
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            focusedScale = 1.12f,
         ) {
             if (coverBitmap != null) {
                 // 有封面：把方形封面裁剪铺满圆形入口
@@ -285,11 +280,16 @@ private fun LeftNavBar(
                     bitmap = coverBitmap.asImageBitmap(),
                     contentDescription = "播放页",
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxSize().clip(CircleShape),
                 )
             } else {
                 // 无封面：显示音符图标
-                Icon(Icons.Default.MusicNote, contentDescription = "播放页", tint = TvTextDark, modifier = Modifier.size(30.dp))
+                Icon(
+                    Icons.Default.MusicNote,
+                    contentDescription = "播放页",
+                    tint = TvTextDark,
+                    modifier = Modifier.size(30.dp).align(Alignment.Center),
+                )
             }
         }
         if (hasContent) {
@@ -327,34 +327,34 @@ private fun LeftNavBar(
 
 @Composable
 private fun NavItemRow(item: NavItem, selected: Boolean, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 3.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(
-                if (selected) TvAccentSoft else Color.Transparent,
-                RoundedCornerShape(12.dp),
-            )
-            .lxFocusable(shape = RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    TvFocusSurface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+        shape = RoundedCornerShape(12.dp),
+        containerColor = if (selected) TvAccentSoft else Color.Transparent,
+        focusedScale = 1.04f,
     ) {
-        Icon(
-            item.icon,
-            contentDescription = item.label,
-            tint = if (selected) TvAccent else MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(24.dp),
-        )
-        Spacer(Modifier.size(12.dp))
-        Text(
-            item.label,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-            // 当前项：浅色高亮背景 + 固定深蓝紫文字，杜绝白字压浅底看不清。
-            color = if (selected) TvAccent else MaterialTheme.colorScheme.onSurface,
-            fontSize = 15.sp,
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                item.icon,
+                contentDescription = item.label,
+                tint = if (selected) TvAccent else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(24.dp),
+            )
+            Spacer(Modifier.size(12.dp))
+            Text(
+                item.label,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                // 当前项：浅色高亮背景 + 固定深蓝紫文字，杜绝白字压浅底看不清。
+                color = if (selected) TvAccent else MaterialTheme.colorScheme.onSurface,
+                fontSize = 15.sp,
+            )
+        }
     }
 }
 

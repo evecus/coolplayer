@@ -1,8 +1,4 @@
 <resources>
-    <style name="Theme.CoolPlayer" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:statusBarColor">@android:color/transparent</item>
-        <item name="android:navigationBarColor">@android:color/transparent</item>
-        <item name="android:windowLightStatusBar">true</item>
-        <item name="android:windowLightNavigationBar">true</item>
-    </style>
+    <!-- 纯 TV：无状态栏/导航栏，使用基础浅色无 ActionBar 主题 -->
+    <style name="Theme.CoolPlayer" parent="android:Theme.Material.Light.NoActionBar" />
 </resources>

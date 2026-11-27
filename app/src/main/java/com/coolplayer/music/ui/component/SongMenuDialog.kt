@@ -32,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import com.coolplayer.music.data.PlaylistEntity
 import com.coolplayer.music.data.SongEntry
 
@@ -129,21 +130,23 @@ private fun MenuRow(
     focusRequester: FocusRequester? = null,
     onClick: () -> Unit,
 ) {
-    Row(
+    TvFocusSurface(
+        onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 2.dp)
-            .lxFocusable(
-                focusRequester = if (first) focusRequester else null,
-                shape = RoundedCornerShape(10.dp),
-            )
-            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(10.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 14.dp),
+            .then(if (first && focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier),
+        shape = RoundedCornerShape(10.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        focusedScale = 1.03f,
+    ) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(icon, contentDescription = null, tint = TvAccent, modifier = Modifier.size(22.dp))
         Spacer(Modifier.width(14.dp))
         Text(label, color = TvTextDark, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
     }
 }

@@ -62,9 +62,7 @@ import com.coolplayer.music.data.ScanFilters
 import com.coolplayer.music.data.ScanFiltersStore
 import com.coolplayer.music.ui.component.TvTextDark
 import com.coolplayer.music.ui.component.lxFocusRing
-import com.coolplayer.music.ui.component.lxFocusable
-import com.coolplayer.music.ui.theme.boundTabletWidth
-import com.coolplayer.music.ui.theme.currentWindowInfo
+import com.coolplayer.music.ui.component.TvFocusSurface
 import com.coolplayer.music.ui.widget.ScanProgressDialog
 
 @Composable
@@ -127,16 +125,11 @@ fun ScanSettingsScreen(vm: LibraryViewModel, onBack: () -> Unit) {
         }
     }
 
-    val windowInfo = currentWindowInfo
-    val isTablet = windowInfo.isTablet
-
     Box(
         modifier = Modifier.fillMaxSize().background(scheme.background),
         contentAlignment = Alignment.TopCenter
     ) {
-        Column(modifier = Modifier.fillMaxHeight().run {
-            if (isTablet) this else boundTabletWidth()
-        }.statusBarsPadding()) {
+        Column(modifier = Modifier.fillMaxHeight().statusBarsPadding()) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp)
@@ -144,204 +137,63 @@ fun ScanSettingsScreen(vm: LibraryViewModel, onBack: () -> Unit) {
                 Text(text = "媒体来源", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = scheme.onBackground)
             }
 
-            if (isTablet) {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(24.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    item {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Column(Modifier.weight(1f)) {
-                                ScanActionCard(isScanning = isScanning, onClick = { startScan() })
-                                Spacer(Modifier.height(12.dp))
-                                SwitchCard(
-                                    title = "使用 Android 媒体库",
-                                    subtitle = null,
-                                    checked = filters.useMediaStore,
-                                    onCheckedChange = { updateFilters(filters.copy(useMediaStore = it)) }
-                                )
-                                Spacer(Modifier.height(12.dp))
-                                SwitchCard(
-                                    title = "扫描去重",
-                                    subtitle = "标题和艺术家完全相同时只保留一个",
-                                    checked = filters.dedupeEnabled,
-                                    onCheckedChange = { updateFilters(filters.copy(dedupeEnabled = it)) }
-                                )
-                                Spacer(Modifier.height(12.dp))
-                                ActionCard(
-                                    icon = Icons.Default.Delete,
-                                    title = "清理扫描数据",
-                                    onClick = { showClearConfirm = true }
-                                )
-                            }
-                            Column(Modifier.weight(1f)) {
-                                ActionCard(
-                                    icon = Icons.Default.Folder,
-                                    title = "管理外部存储权限",
-                                    trailingIcon = Icons.Default.OpenInNew,
-                                    onClick = { PermissionUtil.requestAllFilesAccess(context) }
-                                )
-                                Spacer(Modifier.height(12.dp))
-                                SwitchCard(
-                                    title = "不扫描 60 秒以下音频",
-                                    subtitle = null,
-                                    checked = filters.skipShortAudio,
-                                    onCheckedChange = { updateFilters(filters.copy(skipShortAudio = it)) }
-                                )
-                                Spacer(Modifier.height(12.dp))
-                                ArrowCard(
-                                    title = "音频格式",
-                                    subtitle = if (filters.allowedExtensions.isEmpty()) "不限制"
-                                    else filters.allowedExtensions.joinToString(" / ") { it.removePrefix(".").uppercase() },
-                                    onClick = { showFormatDialog = true }
-                                )
-                                Spacer(Modifier.height(12.dp))
-                                ArrowCard(
-                                    title = "音频大小范围",
-                                    subtitle = sizeRangeSummary(filters.minSizeMb, filters.maxSizeMb),
-                                    onClick = { showSizeRangeDialog = true }
-                                )
-                                Spacer(Modifier.height(12.dp))
-                                ArrowCard(
-                                    title = "被屏蔽的文件夹",
-                                    subtitle = "已设 ${FolderBlacklist.get().size} 个",
-                                    onClick = { showBlacklistDialog = true }
-                                )
-                            }
-                        }
-                    }
-                    item {
-                        SectionLabel("自定义文件夹")
-                    }
-                    items(filters.customFolders) { folder ->
-                        FolderCard(path = folder, onRemove = {
-                            updateFilters(filters.copy(customFolders = filters.customFolders - folder))
-                        })
-                    }
-                    item {
-                        ActionCard(
-                            icon = Icons.Default.CreateNewFolder,
-                            title = "添加自定义文件夹",
-                            onClick = { runCatching { folderPickerLauncher.launch(null) } }
-                        )
-                    }
-                    item {
-                        SectionLabel("定期扫描")
-                    }
-                    item {
-                        SwitchCard(
-                            title = "定期扫描",
-                            subtitle = "App 运行时，超过设定天数会自动在后台静默扫描一次",
-                            checked = filters.periodicScanEnabled,
-                            onCheckedChange = { updateFilters(filters.copy(periodicScanEnabled = it)) }
-                        )
-                    }
-                    if (filters.periodicScanEnabled) {
-                        item {
-                            Card(
-                                shape = RoundedCornerShape(10.dp),
-                                colors = CardDefaults.cardColors(containerColor = scheme.surfaceVariant),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
-                                ) {
-                                    Icon(imageVector = Icons.Default.Update, contentDescription = null, tint = TvTextDark)
-                                    Spacer(Modifier.size(12.dp))
-                                    Text(
-                                        text = "间隔天数",
-                                        color = scheme.onSurface,
-                                        fontSize = 15.sp,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    OutlinedTextField(
-                                        value = intervalInput,
-                                        onValueChange = { input ->
-                                            val digitsOnly = input.filter { it.isDigit() }
-                                            intervalInput = digitsOnly
-                                            val days = digitsOnly.toIntOrNull()
-                                            if (days != null && days > 0) {
-                                                updateFilters(filters.copy(periodicScanIntervalDays = days))
-                                            }
-                                        },
-                                        singleLine = true,
-                                        modifier = Modifier.width(80.dp).lxFocusRing(shape = RoundedCornerShape(8.dp))
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    item {
-                        Text(
-                            text = "若使用自定义文件夹功能的同时开启了使用 Android 媒体库功能，那么最终扫描到的歌曲为二者并集。如果仅需使用自定义文件夹请关闭使用 Android 媒体库功能",
-                            color = scheme.onSurfaceVariant,
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(top = 8.dp, start = 4.dp, end = 4.dp)
-                        )
-                    }
-                    item { Spacer(Modifier.height(80.dp)) }
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                item { ScanActionCard(isScanning = isScanning, onClick = { startScan() }) }
+                item { SwitchCard(title = "使用 Android 媒体库", subtitle = null, checked = filters.useMediaStore, onCheckedChange = { updateFilters(filters.copy(useMediaStore = it)) }) }
+                item { SwitchCard(title = "扫描去重", subtitle = "标题和艺术家完全相同时只保留一个", checked = filters.dedupeEnabled, onCheckedChange = { updateFilters(filters.copy(dedupeEnabled = it)) }) }
+                item { ActionCard(icon = Icons.Default.Delete, title = "清理扫描数据", onClick = { showClearConfirm = true }) }
+                item { SectionLabel("自定义文件夹") }
+                items(filters.customFolders) { folder ->
+                    FolderCard(path = folder, onRemove = { updateFilters(filters.copy(customFolders = filters.customFolders - folder)) })
                 }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    item { ScanActionCard(isScanning = isScanning, onClick = { startScan() }) }
-                    item { SwitchCard(title = "使用 Android 媒体库", subtitle = null, checked = filters.useMediaStore, onCheckedChange = { updateFilters(filters.copy(useMediaStore = it)) }) }
-                    item { SwitchCard(title = "扫描去重", subtitle = "标题和艺术家完全相同时只保留一个", checked = filters.dedupeEnabled, onCheckedChange = { updateFilters(filters.copy(dedupeEnabled = it)) }) }
-                    item { ActionCard(icon = Icons.Default.Delete, title = "清理扫描数据", onClick = { showClearConfirm = true }) }
-                    item { SectionLabel("自定义文件夹") }
-                    items(filters.customFolders) { folder ->
-                        FolderCard(path = folder, onRemove = { updateFilters(filters.copy(customFolders = filters.customFolders - folder)) })
-                    }
-                    item { ActionCard(icon = Icons.Default.CreateNewFolder, title = "添加自定义文件夹", onClick = { runCatching { folderPickerLauncher.launch(null) } }) }
-                    item { SectionLabel("设置") }
-                    item { ActionCard(icon = Icons.Default.Folder, title = "管理外部存储权限", trailingIcon = Icons.Default.OpenInNew, onClick = { PermissionUtil.requestAllFilesAccess(context) }) }
-                    item { SwitchCard(title = "不扫描 60 秒以下音频", subtitle = null, checked = filters.skipShortAudio, onCheckedChange = { updateFilters(filters.copy(skipShortAudio = it)) }) }
-                    item { ArrowCard(title = "音频格式", subtitle = if (filters.allowedExtensions.isEmpty()) "不限制" else filters.allowedExtensions.joinToString(" / ") { it.removePrefix(".").uppercase() }, onClick = { showFormatDialog = true }) }
-                    item { ArrowCard(title = "音频大小范围", subtitle = sizeRangeSummary(filters.minSizeMb, filters.maxSizeMb), onClick = { showSizeRangeDialog = true }) }
-                    item { ArrowCard(title = "被屏蔽的文件夹", subtitle = "已设 ${FolderBlacklist.get().size} 个", onClick = { showBlacklistDialog = true }) }
-                    item { SwitchCard(title = "定期扫描", subtitle = "App 运行时，超过设定天数会自动在后台静默扫描一次", checked = filters.periodicScanEnabled, onCheckedChange = { updateFilters(filters.copy(periodicScanEnabled = it)) }) }
-                    if (filters.periodicScanEnabled) {
-                        item {
-                            Card(
-                                shape = RoundedCornerShape(10.dp),
-                                colors = CardDefaults.cardColors(containerColor = scheme.surfaceVariant),
-                                modifier = Modifier.fillMaxWidth()
+                item { ActionCard(icon = Icons.Default.CreateNewFolder, title = "添加自定义文件夹", onClick = { runCatching { folderPickerLauncher.launch(null) } }) }
+                item { SectionLabel("设置") }
+                item { ActionCard(icon = Icons.Default.Folder, title = "管理外部存储权限", trailingIcon = Icons.Default.OpenInNew, onClick = { PermissionUtil.requestAllFilesAccess(context) }) }
+                item { SwitchCard(title = "不扫描 60 秒以下音频", subtitle = null, checked = filters.skipShortAudio, onCheckedChange = { updateFilters(filters.copy(skipShortAudio = it)) }) }
+                item { ArrowCard(title = "音频格式", subtitle = if (filters.allowedExtensions.isEmpty()) "不限制" else filters.allowedExtensions.joinToString(" / ") { it.removePrefix(".").uppercase() }, onClick = { showFormatDialog = true }) }
+                item { ArrowCard(title = "音频大小范围", subtitle = sizeRangeSummary(filters.minSizeMb, filters.maxSizeMb), onClick = { showSizeRangeDialog = true }) }
+                item { ArrowCard(title = "被屏蔽的文件夹", subtitle = "已设 ${FolderBlacklist.get().size} 个", onClick = { showBlacklistDialog = true }) }
+                item { SwitchCard(title = "定期扫描", subtitle = "App 运行时，超过设定天数会自动在后台静默扫描一次", checked = filters.periodicScanEnabled, onCheckedChange = { updateFilters(filters.copy(periodicScanEnabled = it)) }) }
+                if (filters.periodicScanEnabled) {
+                    item {
+                        Card(
+                            shape = RoundedCornerShape(10.dp),
+                            colors = CardDefaults.cardColors(containerColor = scheme.surfaceVariant),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
-                                ) {
-                                    Icon(imageVector = Icons.Default.Update, contentDescription = null, tint = TvTextDark)
-                                    Spacer(Modifier.size(12.dp))
-                                    Text(text = "间隔天数", color = scheme.onSurface, fontSize = 15.sp, modifier = Modifier.weight(1f))
-                                    OutlinedTextField(
-                                        value = intervalInput,
-                                        onValueChange = { input ->
-                                            val digitsOnly = input.filter { it.isDigit() }
-                                            intervalInput = digitsOnly
-                                            val days = digitsOnly.toIntOrNull()
-                                            if (days != null && days > 0) { updateFilters(filters.copy(periodicScanIntervalDays = days)) }
-                                        },
-                                        singleLine = true,
-                                        modifier = Modifier.width(80.dp).lxFocusRing(shape = RoundedCornerShape(8.dp))
-                                    )
-                                }
+                                Icon(imageVector = Icons.Default.Update, contentDescription = null, tint = TvTextDark)
+                                Spacer(Modifier.size(12.dp))
+                                Text(text = "间隔天数", color = scheme.onSurface, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                                OutlinedTextField(
+                                    value = intervalInput,
+                                    onValueChange = { input ->
+                                        val digitsOnly = input.filter { it.isDigit() }
+                                        intervalInput = digitsOnly
+                                        val days = digitsOnly.toIntOrNull()
+                                        if (days != null && days > 0) { updateFilters(filters.copy(periodicScanIntervalDays = days)) }
+                                    },
+                                    singleLine = true,
+                                    modifier = Modifier.width(80.dp).lxFocusRing(shape = RoundedCornerShape(8.dp))
+                                )
                             }
                         }
                     }
-                    item {
-                        Text(
-                            text = "若使用自定义文件夹功能的同时开启了使用 Android 媒体库功能，那么最终扫描到的歌曲为二者并集。如果仅需使用自定义文件夹请关闭使用 Android 媒体库功能",
-                            color = scheme.onSurfaceVariant,
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(top = 8.dp, start = 4.dp, end = 4.dp)
-                        )
-                    }
+                }
+                item {
+                    Text(
+                        text = "若使用自定义文件夹功能的同时开启了使用 Android 媒体库功能，那么最终扫描到的歌曲为二者并集。如果仅需使用自定义文件夹请关闭使用 Android 媒体库功能",
+                        color = scheme.onSurfaceVariant,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 8.dp, start = 4.dp, end = 4.dp)
+                    )
                 }
             }
         }
@@ -403,10 +255,13 @@ private fun sizeRangeSummary(minMb: Int?, maxMb: Int?): String = when {
 @Composable
 private fun ScanActionCard(isScanning: Boolean, onClick: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
-    Card(
+    TvFocusSurface(
+        onClick = onClick,
+        enabled = !isScanning,
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(containerColor = scheme.surfaceVariant),
-        modifier = Modifier.fillMaxWidth().lxFocusable(shape = RoundedCornerShape(10.dp)).clickable(enabled = !isScanning, onClick = onClick)
+        containerColor = scheme.surfaceVariant,
+        focusedScale = 1.03f,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(16.dp)) {
             if (isScanning) {
@@ -428,10 +283,12 @@ private fun SectionLabel(text: String) {
 @Composable
 private fun SwitchCard(title: String, subtitle: String?, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
     val scheme = MaterialTheme.colorScheme
-    Card(
+    TvFocusSurface(
+        onClick = { onCheckedChange(!checked) },
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(containerColor = scheme.surfaceVariant),
-        modifier = Modifier.fillMaxWidth().lxFocusable(shape = RoundedCornerShape(10.dp)).clickable { onCheckedChange(!checked) }
+        containerColor = scheme.surfaceVariant,
+        focusedScale = 1.03f,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
             Column(Modifier.weight(1f)) {
@@ -446,7 +303,7 @@ private fun SwitchCard(title: String, subtitle: String?, checked: Boolean, onChe
 @Composable
 private fun ArrowCard(title: String, subtitle: String, onClick: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
-    Card(shape = RoundedCornerShape(10.dp), colors = CardDefaults.cardColors(containerColor = scheme.surfaceVariant), modifier = Modifier.fillMaxWidth().lxFocusable(shape = RoundedCornerShape(10.dp)).clickable(onClick = onClick)) {
+    TvFocusSurface(onClick = onClick, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp), containerColor = scheme.surfaceVariant, focusedScale = 1.03f) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
             Column(Modifier.weight(1f)) {
                 Text(text = title, color = scheme.onSurface, fontSize = 15.sp)
@@ -460,7 +317,7 @@ private fun ArrowCard(title: String, subtitle: String, onClick: () -> Unit) {
 @Composable
 private fun ActionCard(icon: ImageVector, title: String, onClick: () -> Unit, trailingIcon: ImageVector? = null) {
     val scheme = MaterialTheme.colorScheme
-    Card(shape = RoundedCornerShape(10.dp), colors = CardDefaults.cardColors(containerColor = scheme.surfaceVariant), modifier = Modifier.fillMaxWidth().lxFocusable(shape = RoundedCornerShape(10.dp)).clickable(onClick = onClick)) {
+    TvFocusSurface(onClick = onClick, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp), containerColor = scheme.surfaceVariant, focusedScale = 1.03f) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
             Icon(imageVector = icon, contentDescription = null, tint = TvTextDark)
             Spacer(Modifier.size(12.dp))
@@ -476,7 +333,9 @@ private fun FolderCard(path: String, onRemove: () -> Unit) {
     Card(shape = RoundedCornerShape(10.dp), colors = CardDefaults.cardColors(containerColor = scheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
             Text(text = path, color = scheme.onSurface, fontSize = 14.sp, modifier = Modifier.weight(1f))
-            Text(text = "移除", color = scheme.error, fontSize = 13.sp, modifier = Modifier.lxFocusable(shape = RoundedCornerShape(8.dp)).clickable(onClick = onRemove).padding(4.dp))
+            TvFocusSurface(onClick = onRemove, shape = RoundedCornerShape(8.dp), focusedScale = 1.1f) {
+                Text(text = "移除", color = scheme.error, fontSize = 13.sp, modifier = Modifier.padding(8.dp))
+            }
         }
     }
 }
@@ -492,9 +351,11 @@ private fun FormatFilterDialog(selected: Set<String>, onDismiss: () -> Unit, onC
             Spacer(Modifier.height(8.dp))
             KNOWN_AUDIO_FORMATS.forEach { ext ->
                 val checked = current.contains(ext)
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().lxFocusable(shape = RoundedCornerShape(8.dp)).clickable { current = if (checked) current - ext else current + ext }.padding(vertical = 6.dp)) {
-                    androidx.compose.material3.Checkbox(checked = checked, onCheckedChange = { current = if (it) current + ext else current - ext }, modifier = Modifier.focusable(false))
-                    Text(text = ext.removePrefix(".").uppercase(), color = scheme.onSurface)
+                TvFocusSurface(onClick = { current = if (checked) current - ext else current + ext }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(8.dp), focusedScale = 1.03f) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                        androidx.compose.material3.Checkbox(checked = checked, onCheckedChange = { current = if (it) current + ext else current - ext }, modifier = Modifier.focusable(false))
+                        Text(text = ext.removePrefix(".").uppercase(), color = scheme.onSurface)
+                    }
                 }
             }
         }
@@ -531,7 +392,9 @@ private fun ScanBlacklistDialog(onDismiss: () -> Unit) {
                 items(list) { folder ->
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                         Text(text = folder, fontSize = 13.sp, color = scheme.onSurface, modifier = Modifier.weight(1f))
-                        Text(text = "移除", color = scheme.error, fontSize = 13.sp, modifier = Modifier.lxFocusable(shape = RoundedCornerShape(8.dp)).clickable { FolderBlacklist.remove(folder); list = FolderBlacklist.get() })
+                        TvFocusSurface(onClick = { FolderBlacklist.remove(folder); list = FolderBlacklist.get() }, shape = RoundedCornerShape(8.dp), focusedScale = 1.1f) {
+                            Text(text = "移除", color = scheme.error, fontSize = 13.sp, modifier = Modifier.padding(8.dp))
+                        }
                     }
                 }
             }

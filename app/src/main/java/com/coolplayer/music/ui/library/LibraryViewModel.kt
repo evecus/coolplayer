@@ -527,7 +527,7 @@ class LibraryViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     companion object {
-        // 给 HomeScreen 用：分类标签
+        // TV 音乐库分类标签
         val categoryLabels = listOf("歌曲", "专辑", "歌手", "文件夹")
     }
 }

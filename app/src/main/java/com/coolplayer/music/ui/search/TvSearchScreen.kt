@@ -52,7 +52,7 @@ import com.coolplayer.music.data.SongEntry
 import com.coolplayer.music.data.toSongEntry
 import com.coolplayer.music.player.PlayerConnection
 import com.coolplayer.music.ui.component.TvTextDark
-import com.coolplayer.music.ui.component.lxFocusable
+import com.coolplayer.music.ui.component.TvFocusSurface
 import com.coolplayer.music.ui.component.requestFocusWhenReady
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -161,7 +161,7 @@ fun TvSearchScreen(
                     }
                 } else {
                     val listState = rememberLazyListState()
-                    LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+                    LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 6.dp)) {
                         itemsIndexed(state.results) { index, song ->
                             SearchResultRow(
                                 song = song,
@@ -242,15 +242,16 @@ private fun TagColumn(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 words.forEach { word ->
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(MaterialTheme.colorScheme.secondaryContainer)
-                            .lxFocusable(shape = RoundedCornerShape(20.dp))
-                            .clickable { onSelect(word) }
-                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                    TvFocusSurface(
+                        onClick = { onSelect(word) },
+                        shape = RoundedCornerShape(20.dp),
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        focusedScale = 1.08f,
                     ) {
-                        Text(word, fontSize = 15.sp, color = TvTextDark, maxLines = 1)
+                        Text(
+                            word, fontSize = 15.sp, color = TvTextDark, maxLines = 1,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                        )
                     }
                 }
             }
@@ -266,13 +267,16 @@ private fun SearchResultRow(
     focusRequester: FocusRequester?,
     onClick: () -> Unit,
 ) {
-    Row(
+    TvFocusSurface(
+        onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
-            .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
-            .lxFocusable()
-            .clickable(onClick = onClick)
-            .padding(12.dp),
+            .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier),
+        shape = RoundedCornerShape(10.dp),
+        focusedScale = 1.02f,
+    ) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text("${index + 1}", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(36.dp))
@@ -291,6 +295,7 @@ private fun SearchResultRow(
             )
         }
         if (isActive) Icon(Icons.Default.PlayArrow, contentDescription = "正在播放", tint = MaterialTheme.colorScheme.primary)
+    }
     }
 }
 
@@ -335,22 +340,26 @@ private fun KeyboardKey(
         outlined -> MaterialTheme.colorScheme.outline
         else -> Color.Transparent
     }
-    Box(
-        modifier = modifier
-            .height(48.dp)
-            .clip(shape)
-            .background(if (accent) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant)
-            .border(if (borderColor == Color.Transparent) 0.dp else 1.dp, borderColor, shape)
-            .lxFocusable(shape = shape)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
+    TvFocusSurface(
+        onClick = onClick,
+        modifier = modifier.height(48.dp),
+        shape = shape,
+        containerColor = if (accent) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+        focusedScale = 1.1f,
     ) {
-        Text(
-            label,
-            fontSize = 16.sp,
-            fontWeight = if (accent) FontWeight.SemiBold else FontWeight.Normal,
-            color = if (accent) TvTextDark else MaterialTheme.colorScheme.onSurface,
-        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .border(if (borderColor == Color.Transparent) 0.dp else 1.dp, borderColor, shape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                label,
+                fontSize = 16.sp,
+                fontWeight = if (accent) FontWeight.SemiBold else FontWeight.Normal,
+                color = if (accent) TvTextDark else MaterialTheme.colorScheme.onSurface,
+            )
+        }
     }
 }
 

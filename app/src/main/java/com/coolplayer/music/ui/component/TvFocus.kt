@@ -3,6 +3,9 @@ package com.coolplayer.music.ui.component
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -33,7 +36,6 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
-import com.coolplayer.music.ui.adaptive.LocalAdaptive
 import kotlinx.coroutines.delay
 
 // 焦点框配色：淡橙底 + 4dp 橙色描边 + 1dp 白色内线，白底/黑底都醒目
@@ -61,9 +63,8 @@ private fun Modifier.focusFrame(focused: Boolean, shape: Shape): Modifier = this
     .border(1.dp, if (focused) FocusWhite else Color.Transparent, shape)
 
 /**
- * 统一可聚焦修饰（移植自 FMusic）：
- * - TV：遥控器可聚焦 + 橙色焦点框，方向键由系统按空间位置找下一个焦点。
- * - 非 TV：仅补可获焦能力，不改外观。
+ * TV 统一可聚焦修饰：遥控器可聚焦 + 橙色焦点框，
+ * 方向键由系统按空间位置找下一个焦点。
  * 注意顺序：必须放在 .clickable{} 之前（更靠外），否则 onFocusChanged 观察不到焦点。
  */
 fun Modifier.lxFocusable(
@@ -71,15 +72,12 @@ fun Modifier.lxFocusable(
     shape: Shape = RoundedCornerShape(10.dp),
     showBorder: Boolean = true,
 ): Modifier = composed {
-    val isTv = LocalAdaptive.current.isTv
     var focused by remember { mutableStateOf(false) }
     var result = this
         .onFocusChanged { focused = it.hasFocus }
         .focusable()
-    if (isTv) {
-        result = result.zIndex(if (focused) 1f else 0f)
-        if (showBorder) result = result.focusFrame(focused, shape)
-    }
+        .zIndex(if (focused) 1f else 0f)
+    if (showBorder) result = result.focusFrame(focused, shape)
     if (focusRequester != null) result.focusRequester(focusRequester) else result
 }
 
@@ -99,11 +97,8 @@ suspend fun FocusRequester.requestFocusWhenReady(maxFrames: Int = 12) {
 
 /** 只显示焦点框，不额外增加焦点目标（用于 Slider 等自带焦点的组件） */
 fun Modifier.lxFocusRing(shape: Shape = RoundedCornerShape(10.dp)): Modifier = composed {
-    val isTv = LocalAdaptive.current.isTv
     var focused by remember { mutableStateOf(false) }
-    var result = this.onFocusChanged { focused = it.hasFocus }
-    if (isTv) result = result.focusFrame(focused, shape)
-    result
+    this.onFocusChanged { focused = it.hasFocus }.focusFrame(focused, shape)
 }
 
 /** TV 友好的图标按钮：TV 放大尺寸并显示焦点框 */
@@ -118,35 +113,26 @@ fun LxIconButton(
     compact: Boolean = false,
     content: (@Composable () -> Unit)? = null,
 ) {
-    val adaptive = LocalAdaptive.current
-    val size = when {
-        compact && adaptive.isTv -> 48.dp
-        compact && adaptive.isTablet -> 40.dp
-        compact -> 36.dp
-        adaptive.isTv -> adaptive.iconButtonSize
-        else -> null
-    }
-    val iconSize = when {
-        compact -> 20.dp
-        adaptive.isTv -> adaptive.iconButtonSize * 0.6f
-        else -> 24.dp
-    }
-    IconButton(
+    val size = if (compact) 48.dp else 64.dp
+    val iconSize = if (compact) 20.dp else 64.dp * 0.6f
+    TvFocusSurface(
         onClick = onClick,
         enabled = enabled,
-        modifier = modifier
-            .then(if (size != null) Modifier.size(size) else Modifier)
-            .lxFocusable(shape = CircleShape),
+        modifier = modifier.size(size),
+        shape = CircleShape,
+        focusedScale = 1.12f,
     ) {
-        if (content != null) {
-            content()
-        } else {
-            Icon(
-                imageVector = imageVector,
-                contentDescription = contentDescription,
-                tint = tint,
-                modifier = Modifier.size(iconSize),
-            )
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            if (content != null) {
+                content()
+            } else {
+                Icon(
+                    imageVector = imageVector,
+                    contentDescription = contentDescription,
+                    tint = tint,
+                    modifier = Modifier.size(iconSize),
+                )
+            }
         }
     }
 }
@@ -179,14 +165,14 @@ fun LxDropdownMenu(
 
 /** 菜单项修饰：TV 聚焦高亮；first=true 的项在菜单弹出时自动获焦 */
 fun Modifier.lxMenuItem(first: Boolean = false): Modifier = composed {
-    val isTv = LocalAdaptive.current.isTv
     var focused by remember { mutableStateOf(false) }
     var m = this.onFocusChanged { focused = it.hasFocus }
-    if (first && isTv) {
+        .focusFrame(focused, RoundedCornerShape(8.dp))
+    if (first) {
         val requester = LocalMenuFirstFocus.current
         if (requester != null) m = m.focusRequester(requester)
     }
-    if (isTv) m.focusFrame(focused, RoundedCornerShape(8.dp)) else m
+    m
 }
 
 /** TV 列表行焦点导航：行聚焦时按右键显式把焦点移到行尾更多按钮 */
@@ -194,15 +180,10 @@ fun Modifier.lxRowFocusNav(
     moreFocus: FocusRequester,
     enabled: () -> Boolean = { true },
 ): Modifier = composed {
-    val isTv = LocalAdaptive.current.isTv
-    if (!isTv) {
-        this
-    } else {
-        this.onKeyEvent { event ->
-            if (enabled() && event.type == KeyEventType.KeyDown && event.key == Key.DirectionRight) {
-                runCatching { moreFocus.requestFocus() }
-                true
-            } else false
-        }
+    this.onKeyEvent { event ->
+        if (enabled() && event.type == KeyEventType.KeyDown && event.key == Key.DirectionRight) {
+            runCatching { moreFocus.requestFocus() }
+            true
+        } else false
     }
 }

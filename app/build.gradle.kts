@@ -40,7 +40,7 @@ android {
         release {
             // 与原 coolplayer 一致：开启 R8 代码压缩 + 资源收缩以精简体积。
             // proguard-rules.pro 已保留 Media3 / Room / JAudioTagger 反射类 /
-            // Kotlin 元数据 / Widget 与 Service 等入口，可安全开启。
+            // Kotlin 元数据 / Service 等入口，可安全开启。
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -99,6 +99,9 @@ dependencies {
     implementation("androidx.media3:media3-common:1.4.1")
     implementation("androidx.media3:media3-session:1.4.1")
 
+    // Compose for TV：Surface 聚焦缩放/描边/光晕等 TV 标准焦点效果
+    implementation("androidx.tv:tv-material:1.0.0")
+
     // Coil (image loading)
     implementation("io.coil-kt:coil-compose:2.7.0")
 
@@ -115,12 +118,6 @@ dependencies {
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
-
-    // Window for tablet/phone layout detection
-    implementation("androidx.window:window:1.3.0")
-
-    // System UI controller
-    implementation("com.google.accompanist:accompanist-systemuicontroller:0.34.0")
 
     // Document file for scoped storage
     implementation("androidx.documentfile:documentfile:1.0.1")

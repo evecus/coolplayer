@@ -3,7 +3,6 @@ package com.coolplayer.music
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import com.coolplayer.music.ui.adaptive.ProvideAdaptive
 import com.coolplayer.music.ui.theme.AppTheme
 import com.coolplayer.music.ui.theme.ThemeState
@@ -12,7 +11,6 @@ import com.coolplayer.music.ui.tv.TvMainScreen
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
         setContent {
             // TV 版固定浅色主题，避免深色/跟随系统下浅色背景与文字对比度问题。
             val darkTheme = false

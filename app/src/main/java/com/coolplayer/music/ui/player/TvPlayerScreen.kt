@@ -70,11 +70,13 @@ import com.coolplayer.music.player.MusicPlayer
 import com.coolplayer.music.player.PlayMode
 import com.coolplayer.music.player.PlayerConnection
 import com.coolplayer.music.player.SleepMode
+import androidx.compose.ui.focus.focusRequester
 import com.coolplayer.music.ui.component.LxIconButton
 import com.coolplayer.music.ui.component.TvAccent
 import com.coolplayer.music.ui.component.TvAccentSoft
 import com.coolplayer.music.ui.component.TvTextDark
-import com.coolplayer.music.ui.component.lxFocusable
+import com.coolplayer.music.ui.component.TvCircleButton
+import com.coolplayer.music.ui.component.TvFocusSurface
 import com.coolplayer.music.ui.component.requestFocusWhenReady
 import kotlinx.coroutines.launch
 
@@ -222,17 +224,16 @@ fun TvPlayerScreen(
                 compact = true,
                 modifier = Modifier.padding(horizontal = 28.dp),
             )
-            IconButton(
+            TvCircleButton(
                 onClick = { player.togglePlay() },
-                colors = IconButtonDefaults.filledIconButtonColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = TvTextDark,
-                ),
-                modifier = Modifier.size(56.dp).lxFocusable(focusRequester = playFocus, shape = CircleShape),
+                modifier = Modifier.focusRequester(playFocus),
+                size = 56.dp,
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
             ) {
                 Icon(
                     imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                     contentDescription = if (isPlaying) "暂停" else "播放",
+                    tint = TvTextDark,
                     modifier = Modifier.size(30.dp),
                 )
             }
@@ -424,15 +425,19 @@ private fun QueueDialog(
         onDismissRequest = onDismiss,
         title = { Text("播放队列（${playlist.size}）") },
         text = {
-            LazyColumn(modifier = Modifier.height(360.dp).fillMaxWidth()) {
+            LazyColumn(modifier = Modifier.height(360.dp).fillMaxWidth(), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 6.dp)) {
                 itemsIndexed(playlist) { index, song ->
                     val active = index == currentIdx
-                    Row(
+                    TvFocusSurface(
+                        onClick = { onPlayAt(index); onDismiss() },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .lxFocusable(focusRequester = if (index == 0) firstFocus else null)
-                            .clickable { onPlayAt(index); onDismiss() }
-                            .padding(12.dp),
+                            .then(if (index == 0) Modifier.focusRequester(firstFocus) else Modifier),
+                        shape = RoundedCornerShape(10.dp),
+                        focusedScale = 1.02f,
+                    ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
@@ -448,6 +453,7 @@ private fun QueueDialog(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                         )
+                    }
                     }
                 }
             }
