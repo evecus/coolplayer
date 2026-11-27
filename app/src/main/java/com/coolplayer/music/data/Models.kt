@@ -135,15 +135,3 @@ fun List<Map<String, String>>.toJsonArrayString(): String {
     }
     return arr.toString()
 }
-
-fun parseStringMapList(json: String): List<Map<String, String>> {
-    return runCatching {
-        val arr = JSONArray(json)
-        (0 until arr.length()).map { idx ->
-            val obj = arr.getJSONObject(idx)
-            val map = mutableMapOf<String, String>()
-            obj.keys().forEach { k -> map[k] = obj.getString(k) }
-            map
-        }
-    }.getOrDefault(emptyList())
-}

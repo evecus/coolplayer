@@ -22,16 +22,9 @@ import java.nio.ByteOrder
  * 竞态问题，系数更新通过 [pendingPreset] 做一次性快照切换，在下一次 `queueInput`
  * 时统一生效，不会产生崩溃或撕裂，最坏情况只是漏一帧参数更新。
  *
- * 计算路径（按优先级）：
- *  1. **native biquad**（[NativeBiquad]，NDK C 实现）：逐样本 DF2T 级联在 C 层
- *     完成，无 JVM 边界检查、编译器可自动向量化。44.1kHz 立体声 10 段下 CPU
- *     占用约为 Kotlin 循环的 1/5~1/10，与 Salt Player 的 BASS C 层 BFX_BQF
- *     同量级。算法与 Kotlin 版逐样本一致（主机端 gcc + JNI 端到端比对验证：
- *     mono/stereo/5.1 × 1/3/10 段 × 增益截断 × 多种 buffer 大小全部 MATCH）。
- *     库不可用（so 未打包、ABI 缺失）时自动回退，行为不变。
- *  2. **Kotlin 循环**：兜底路径。滤波器系数与状态均打平为 primitive 数组，
- *     循环内纯下标访问（早期实现对 BiquadFilter 对象数组逐样本调用，
- *     是"开 EQ 后 CPU 从 20% 涨到 40%"的主因）。
+ * 计算路径：纯 Kotlin 循环。滤波器系数与状态均打平为 primitive 数组，
+ *  循环内纯下标访问（早期实现对 BiquadFilter 对象数组逐样本调用，
+ *  是"开 EQ 后 CPU 从 20% 涨到 40%"的主因）。
  *
  * Bypass 机制（对应"原声 preset 仍占 CPU"的排查结论）：
  *  已实证 media3 1.4.1：DefaultAudioSink.processBuffers 在
@@ -178,20 +171,7 @@ class ParametricEqAudioProcessor : BaseAudioProcessor() {
         val nBands = bandCount
         val nCh = channelCount
 
-        if (NativeBiquad.available) {
-            // native 路径：一次 JNI 调用处理整段（含逐样本 biquad 与增益）。
-            // so 缺失/ABI 不匹配时 available=false，自动走下方 Kotlin 兜底。
-            try {
-                NativeBiquad.processInterleaved(
-                    scratch, nCh, nBands, coeffs, stateZ1, stateZ2, gain
-                )
-            } catch (e: UnsatisfiedLinkError) {
-                // 极端情况（如 64 位库被剥离）：本段回退 Kotlin，后续仍尝试 native。
-                processKotlin(scratch, sampleCount, nCh, nBands, gain)
-            }
-        } else {
-            processKotlin(scratch, sampleCount, nCh, nBands, gain)
-        }
+        processKotlin(scratch, sampleCount, nCh, nBands, gain)
 
         val out = outputBuffer.asShortBuffer()
         out.put(scratch, 0, sampleCount)
@@ -201,7 +181,7 @@ class ParametricEqAudioProcessor : BaseAudioProcessor() {
     }
 
     /**
-     * Kotlin 兜底滤波循环（native 不可用时）。与 native 算法逐样本一致：
+     * Kotlin 滤波循环：
      * Direct Form II Transposed，归一化 /32768.0，回写 *32767.0 + 截断。
      */
     private fun processKotlin(

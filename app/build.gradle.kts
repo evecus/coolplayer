@@ -81,12 +81,9 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.9.2")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
-    implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.compose.foundation:foundation")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.6")
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.6")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.6")
     implementation("androidx.navigation:navigation-compose:2.8.1")
 
@@ -95,36 +92,19 @@ dependencies {
     // 没有任何 HLS(m3u8) 网络流播放入口，该模块是纯粹的死重量（约 1.5 万方法数，
     // 影响 R8 后体积与启动时的类验证/编译开销）。
     implementation("androidx.media3:media3-exoplayer:1.4.1")
-    implementation("androidx.media3:media3-ui:1.4.1")
     implementation("androidx.media3:media3-common:1.4.1")
     implementation("androidx.media3:media3-session:1.4.1")
 
     // Compose for TV：Surface 聚焦缩放/描边/光晕等 TV 标准焦点效果
     implementation("androidx.tv:tv-material:1.0.0")
 
-    // Coil (image loading)
-    implementation("io.coil-kt:coil-compose:2.7.0")
-
-    // Palette (cover color extraction)
-    implementation("androidx.palette:palette-ktx:1.0.0")
-
     // Room (playlists / favorites / history)
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
 
-    // DataStore
-    implementation("androidx.datastore:datastore-preferences:1.1.1")
-
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
-
-    // Document file for scoped storage
-    implementation("androidx.documentfile:documentfile:1.0.1")
-
-    // 说明：曾经引入过 Glide 用于 widget 封面加载，但实际全项目没有任何
-    // 代码引用它（widget 封面改用了 BitmapDecodeUtil 手写降采样解码，
-    // Compose 内的封面统一走 Coil），是完全未使用的死重量依赖，已移除。
 
     // JAudioTagger（Android 兼容 fork，来自 Kaned1as/jaudiotagger，JitPack 坐标沿用其曾用
     // GitHub 用户名 Adonai）：多格式（MP3/FLAC/OGG/M4A/WMA/APE/Opus 等）音频标签与内嵌

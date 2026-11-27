@@ -55,7 +55,6 @@ import com.coolplayer.music.ui.component.TvAccent
 import com.coolplayer.music.ui.component.TvTextDark
 import com.coolplayer.music.ui.component.TvFocusSurface
 import com.coolplayer.music.ui.component.lxFocusRing
-import com.coolplayer.music.ui.component.lxFocusable
 import kotlinx.coroutines.launch
 
 /** 收藏虚拟项的特殊 id */

@@ -503,8 +503,6 @@ private fun SleepTimerDialog(
     )
 }
 
-private data class LyricLineParsed(val timeMs: Long, val text: String)
-
 private val lrcTagRegex = Regex("\\[(\\d{1,3}):(\\d{1,2})(?:[.:](\\d{1,3}))?\\]")
 
 private fun parseLrc(raw: String): List<Pair<Long, String>> {

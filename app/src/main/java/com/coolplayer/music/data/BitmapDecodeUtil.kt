@@ -12,9 +12,7 @@ import java.io.ByteArrayOutputStream
  * 单张就要占约 1200*1200*4 ≈ 5.5MB 内存；歌曲列表一次性为 200 首歌加载
  * 封面时，如果不做采样限制，瞬时内存占用可以轻松突破几百 MB。
  *
- * 仅用于 Compose 树之外、无法使用 Coil 的场景（封面取色）。
- * Compose 内的封面展示统一改用 Coil 的 AsyncImage，由 Coil 自动完成按需
- * 采样与内存/磁盘缓存，不应再调用本工具类。
+ * 用于扫描入库时把内嵌封面降采样压缩成列表/网格用的缩略图。
  */
 object BitmapDecodeUtil {
 

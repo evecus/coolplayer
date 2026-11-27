@@ -2,21 +2,15 @@ package com.coolplayer.music.ui.component
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -24,19 +18,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.zIndex
-import kotlinx.coroutines.delay
 
 // 焦点框配色：淡橙底 + 4dp 橙色描边 + 1dp 白色内线，白底/黑底都醒目
 private val FocusFill = Color(0x33FF9800)
@@ -61,25 +47,6 @@ private fun Modifier.focusFrame(focused: Boolean, shape: Shape): Modifier = this
     .background(if (focused) FocusFill else Color.Transparent, shape)
     .border(4.dp, if (focused) FocusRing else Color.Transparent, shape)
     .border(1.dp, if (focused) FocusWhite else Color.Transparent, shape)
-
-/**
- * TV 统一可聚焦修饰：遥控器可聚焦 + 橙色焦点框，
- * 方向键由系统按空间位置找下一个焦点。
- * 注意顺序：必须放在 .clickable{} 之前（更靠外），否则 onFocusChanged 观察不到焦点。
- */
-fun Modifier.lxFocusable(
-    focusRequester: FocusRequester? = null,
-    shape: Shape = RoundedCornerShape(10.dp),
-    showBorder: Boolean = true,
-): Modifier = composed {
-    var focused by remember { mutableStateOf(false) }
-    var result = this
-        .onFocusChanged { focused = it.hasFocus }
-        .focusable()
-        .zIndex(if (focused) 1f else 0f)
-    if (showBorder) result = result.focusFrame(focused, shape)
-    if (focusRequester != null) result.focusRequester(focusRequester) else result
-}
 
 /** 等节点挂载后再请求焦点（LazyColumn 条目在布局阶段才组合） */
 suspend fun FocusRequester.requestFocusWhenReady(maxFrames: Int = 12) {
@@ -134,56 +101,5 @@ fun LxIconButton(
                 )
             }
         }
-    }
-}
-
-// ── DropdownMenu TV 支持 ─────────────────────────────────────────
-
-private val LocalMenuFirstFocus = compositionLocalOf<FocusRequester?> { null }
-
-/** TV 友好的下拉菜单：弹出后自动把焦点移到标记 first 的第一项 */
-@Composable
-fun LxDropdownMenu(
-    expanded: Boolean,
-    onDismissRequest: () -> Unit,
-    modifier: Modifier = Modifier,
-    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
-) {
-    val firstFocus = remember { FocusRequester() }
-    DropdownMenu(expanded = expanded, onDismissRequest = onDismissRequest, modifier = modifier) {
-        CompositionLocalProvider(LocalMenuFirstFocus provides firstFocus) {
-            content()
-        }
-        if (expanded) {
-            LaunchedEffect(expanded) {
-                delay(60)
-                runCatching { firstFocus.requestFocus() }
-            }
-        }
-    }
-}
-
-/** 菜单项修饰：TV 聚焦高亮；first=true 的项在菜单弹出时自动获焦 */
-fun Modifier.lxMenuItem(first: Boolean = false): Modifier = composed {
-    var focused by remember { mutableStateOf(false) }
-    var m = this.onFocusChanged { focused = it.hasFocus }
-        .focusFrame(focused, RoundedCornerShape(8.dp))
-    if (first) {
-        val requester = LocalMenuFirstFocus.current
-        if (requester != null) m = m.focusRequester(requester)
-    }
-    m
-}
-
-/** TV 列表行焦点导航：行聚焦时按右键显式把焦点移到行尾更多按钮 */
-fun Modifier.lxRowFocusNav(
-    moreFocus: FocusRequester,
-    enabled: () -> Boolean = { true },
-): Modifier = composed {
-    this.onKeyEvent { event ->
-        if (enabled() && event.type == KeyEventType.KeyDown && event.key == Key.DirectionRight) {
-            runCatching { moreFocus.requestFocus() }
-            true
-        } else false
     }
 }

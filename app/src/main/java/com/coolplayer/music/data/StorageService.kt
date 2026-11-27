@@ -114,37 +114,20 @@ object StorageService {
 
     // ── Key 常量 ───────────────────────────────────────────────────────
 
-    const val kMusicScanPaths = "music_scan_paths"
     const val kScanFilters = "scan_filters"
     const val kFolderBlacklist = "folder_blacklist"
     /** 用户从音乐库列表隐藏的歌曲 path 集合（软删除，不删物理文件）。 */
     const val kHiddenSongs = "hidden_songs"
     const val kMusicCategory = "music_category"
-    @Deprecated("改用 kMusicSortField + kMusicSortAscending")
-    const val kMusicSongSort = "music_song_sort"
     const val kMusicSortField = "music_sort_field"
     const val kMusicSortAscending = "music_sort_ascending"
     const val kMusicGroupSort = "music_group_sort"
     @Deprecated("音乐库缓存已迁移进 Room song_library 表，此 key 仅用于旧数据一次性迁移读取")
     const val kMusicLibraryCache = "music_library_cache"
-    const val kHomeSeedColor = "home_seed_color"
-    const val kPlayerSeedColor = "player_seed_color"
-    const val kThemeMode = "theme_mode"
-    const val kDynamicColor = "dynamic_color"
-    const val kCoverColor = "cover_color"
     const val kLastPlaylist = "last_playlist"
     const val kLastIndex = "last_index"
     const val kLastPosition = "last_position"
     @Deprecated("播放次数已迁移进 Room song_library 表，此 key 仅用于旧数据一次性迁移读取")
     const val kPlayCount = "play_count_map"
     const val kLastScanCompletedAt = "last_scan_completed_at"
-
-    // ── 歌词显示设置 ───────────────────────────────────────────────────────
-    const val kLyricsFontSize = "lyrics_font_size"
-    const val kLyricsLineSpacing = "lyrics_line_spacing"
-    const val kLyricsAlignment = "lyrics_alignment"
-    const val kLyricsFontWeight = "lyrics_font_weight"
-
-    /** 淡入淡出开关（移植自 Salt Player 的 fade_in_or_out_during_play_or_pause，默认开启）。 */
-    const val kFadeInOut = "fade_in_out"
 }

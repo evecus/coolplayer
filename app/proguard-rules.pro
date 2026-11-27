@@ -23,9 +23,6 @@
 -keep class org.jaudiotagger.** { *; }
 -dontwarn org.jaudiotagger.**
 
-# ── Coil ──────────────────────────────────────────────────────────────
--dontwarn coil.**
-
 # ── Kotlin 协程 ───────────────────────────────────────────────────────
 -dontwarn kotlinx.coroutines.**
 -keepclassmembernames class kotlinx.** {

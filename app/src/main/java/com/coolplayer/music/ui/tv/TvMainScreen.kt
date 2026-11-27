@@ -24,7 +24,6 @@ import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MusicNote
@@ -93,8 +92,8 @@ private val navItems = listOf(
     NavItem(ROUTE_SCAN, "扫描", Icons.Default.LibraryMusic),
 )
 
-/** chromeless 路由：不显示左侧导航栏（全屏播放页、分组详情） */
-private val chromelessRoutes = setOf(ROUTE_PLAYER)
+/** chromeless 路由：不显示左侧导航栏（全屏播放页、音效页、分组详情） */
+private val chromelessRoutes = setOf(ROUTE_PLAYER, ROUTE_AUDIOFX)
 private fun isGroupRoute(route: String?) = route?.startsWith("tv_group/") == true
 
 /**
@@ -313,15 +312,6 @@ private fun LeftNavBar(
                 onClick = { onNavigate(item.route) },
             )
         }
-
-        Spacer(Modifier.weight(1f))
-
-        // EQ 快捷入口
-        NavItemRow(
-            item = NavItem(ROUTE_AUDIOFX, "音效 EQ", Icons.Default.GraphicEq),
-            selected = currentRoute == ROUTE_AUDIOFX,
-            onClick = { onNavigate(ROUTE_AUDIOFX) },
-        )
     }
 }
 
